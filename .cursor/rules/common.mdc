@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- luôn sử dụng `flutter_tabler_icons` thay cho material icons
+- tuân thủ theme của dự án
+- giao diện hỗ trợ dark, light theme
+- tránh các `deprecated API`
