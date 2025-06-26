@@ -72,6 +72,9 @@ dependencies:
   # Firebase Analytics
   firebase_analytics: ^11.5.0
   
+  # Firebase Crashlytics
+  firebase_crashlytics: ^4.1.7
+  
   # Firebase App Check (Security)
   firebase_app_check: ^0.3.2+7
   
@@ -152,8 +155,8 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/images/app_icon/app_icon.png"
-    background_color: "#2E7BD6"
-    theme_color: "#2E7BD6"
+    background_color: "#FF4100"
+    theme_color: "#FF4100"
   windows:
     generate: true
     image_path: "assets/images/app_icon/app_icon.png"
@@ -165,8 +168,8 @@ flutter_launcher_icons:
 # Flutter Native Splash configuration
 flutter_native_splash:
   # Background color using Kienlongbank brand color
-  color: "#2E7BD6"
-  color_dark: "#2E7BD6"
+  color: "#FF4100"
+  color_dark: "#FF4100"
   
   # Logo image for splash screen
   image: "assets/images/splash/splash_logo.png"
@@ -175,9 +178,9 @@ flutter_native_splash:
   # Platform specific
   android_12:
     image: "assets/images/splash/splash_logo.png"
-    color: "#2E7BD6"
+    color: "#FF4100"
     image_dark: "assets/images/splash/splash_logo.png"
-    color_dark: "#2E7BD6"
+    color_dark: "#FF4100"
     
   ios: true
   

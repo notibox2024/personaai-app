@@ -1,5 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 class FirebaseService {
@@ -9,14 +11,20 @@ class FirebaseService {
 
   late FirebaseMessaging _messaging;
   late FirebaseAnalytics _analytics;
+  late FirebaseCrashlytics _crashlytics;
+  late FirebaseInAppMessaging _inAppMessaging;
 
   // Initialize Firebase services
   Future<void> initialize() async {
     _messaging = FirebaseMessaging.instance;
     _analytics = FirebaseAnalytics.instance;
+    _crashlytics = FirebaseCrashlytics.instance;
+    _inAppMessaging = FirebaseInAppMessaging.instance;
     
     await _initializeMessaging();
     await _initializeAnalytics();
+    await _initializeCrashlytics();
+    await _initializeInAppMessaging();
   }
 
   // Initialize Firebase Cloud Messaging
@@ -36,10 +44,18 @@ class FirebaseService {
       print('User granted permission: ${settings.authorizationStatus}');
     }
 
-    // Lấy FCM token
-    String? token = await _messaging.getToken();
-    if (kDebugMode) {
-      print('FCM Token: $token');
+    // Lấy FCM token với error handling cho iOS
+    try {
+      String? token = await _messaging.getToken();
+      if (kDebugMode) {
+        print('FCM Token: $token');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting FCM token: $e');
+        print('This is normal on iOS simulator or when APNS is not properly configured');
+      }
+      // Continue initialization even if token retrieval fails
     }
 
     // Lắng nghe token refresh
@@ -108,7 +124,14 @@ class FirebaseService {
 
   // Get FCM token
   Future<String?> getToken() async {
-    return await _messaging.getToken();
+    try {
+      return await _messaging.getToken();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting FCM token: $e');
+      }
+      return null;
+    }
   }
 
   // Subscribe to topic
@@ -168,5 +191,158 @@ class FirebaseService {
 
   Future<void> logScreenVisit(String screenName) async {
     await logScreenView(screenName);
+  }
+
+  // Initialize Firebase Crashlytics
+  Future<void> _initializeCrashlytics() async {
+    await _crashlytics.setCrashlyticsCollectionEnabled(true);
+    
+    if (kDebugMode) {
+      print('Firebase Crashlytics initialized');
+    }
+  }
+
+  // ============== CRASHLYTICS METHODS ==============
+
+  // Set user identifier
+  Future<void> setCrashlyticsUserId(String userId) async {
+    await _crashlytics.setUserIdentifier(userId);
+  }
+
+  // Set custom key
+  Future<void> setCrashlyticsCustomKey(String key, Object value) async {
+    await _crashlytics.setCustomKey(key, value);
+  }
+
+  // Log non-fatal error
+  Future<void> recordError(
+    dynamic exception,
+    StackTrace? stackTrace, {
+    String? reason,
+    bool fatal = false,
+  }) async {
+    await _crashlytics.recordError(
+      exception,
+      stackTrace,
+      reason: reason,
+      fatal: fatal,
+    );
+  }
+
+  // Log message to crashlytics
+  Future<void> log(String message) async {
+    await _crashlytics.log(message);
+  }
+
+  // Check if crashlytics collection is enabled
+  bool get isCrashlyticsCollectionEnabled =>
+      _crashlytics.isCrashlyticsCollectionEnabled;
+
+  // Send unhandled exception
+  Future<void> recordFlutterError(FlutterErrorDetails errorDetails) async {
+    await _crashlytics.recordFlutterError(errorDetails);
+  }
+
+  // Send handled exception
+  Future<void> recordException(
+    dynamic exception,
+    StackTrace stackTrace, {
+    String? reason,
+  }) async {
+    await recordError(
+      exception,
+      stackTrace,
+      reason: reason,
+      fatal: false,
+    );
+  }
+
+  // Common crashlytics logging methods
+  Future<void> logApiError(String endpoint, String error) async {
+    await setCrashlyticsCustomKey('api_endpoint', endpoint);
+    await log('API Error: $endpoint - $error');
+  }
+
+  Future<void> logAuthError(String authMethod, String error) async {
+    await setCrashlyticsCustomKey('auth_method', authMethod);
+    await log('Auth Error: $authMethod - $error');
+  }
+
+  Future<void> logAttendanceError(String action, String error) async {
+    await setCrashlyticsCustomKey('attendance_action', action);
+    await log('Attendance Error: $action - $error');
+  }
+
+  // Initialize Firebase In-App Messaging
+  Future<void> _initializeInAppMessaging() async {
+    // Enable automatic data collection
+    await _inAppMessaging.setAutomaticDataCollectionEnabled(true);
+    
+    // Enable message display
+    await _inAppMessaging.setMessagesSuppressed(false);
+    
+    if (kDebugMode) {
+      print('Firebase In-App Messaging initialized');
+    }
+  }
+
+  // ============== IN-APP MESSAGING METHODS ==============
+
+  // Trigger in-app message programmatically
+  Future<void> triggerEvent(String eventName, {Map<String, Object>? parameters}) async {
+    await _analytics.logEvent(name: eventName, parameters: parameters);
+    if (kDebugMode) {
+      print('Triggered in-app messaging event: $eventName');
+    }
+  }
+
+  // Suppress in-app messages (useful for specific screens)
+  Future<void> suppressInAppMessages(bool suppress) async {
+    await _inAppMessaging.setMessagesSuppressed(suppress);
+    if (kDebugMode) {
+      print('In-app messages ${suppress ? 'suppressed' : 'enabled'}');
+    }
+  }
+
+  // Enable/disable automatic data collection for in-app messaging
+  Future<void> setInAppMessagingDataCollection(bool enabled) async {
+    await _inAppMessaging.setAutomaticDataCollectionEnabled(enabled);
+    if (kDebugMode) {
+      print('In-app messaging data collection: ${enabled ? 'enabled' : 'disabled'}');
+    }
+  }
+
+  // Common in-app messaging triggers
+  Future<void> triggerWelcomeMessage() async {
+    await triggerEvent('welcome_user');
+  }
+
+  Future<void> triggerFeaturePromotion(String feature) async {
+    await triggerEvent('feature_promotion', parameters: {'feature': feature});
+  }
+
+  Future<void> triggerAttendanceReminder() async {
+    await triggerEvent('attendance_reminder');
+  }
+
+  Future<void> triggerTrainingPrompt() async {
+    await triggerEvent('training_prompt');
+  }
+
+  Future<void> triggerFeedbackRequest() async {
+    await triggerEvent('feedback_request');
+  }
+
+  // Lifecycle-based triggers
+  Future<void> onUserLogin() async {
+    await triggerEvent('user_login');
+  }
+
+  Future<void> onScreenVisit(String screenName) async {
+    await triggerEvent('screen_visit', parameters: {'screen': screenName});
+  }
+
+  Future<void> onActionCompleted(String action) async {
+    await triggerEvent('action_completed', parameters: {'action': action});
   }
 } 

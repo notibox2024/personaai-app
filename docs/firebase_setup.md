@@ -4,6 +4,7 @@
 Dự án PersonaAI đã được tích hợp với Firebase để hỗ trợ các tính năng:
 - ✅ Firebase Cloud Messaging (FCM) - Push Notifications
 - ✅ Firebase Analytics - Theo dõi hành vi người dùng
+- ✅ Firebase Crashlytics - Báo cáo crash và error tracking
 - ✅ Firebase App Check - Bảo mật ứng dụng
 - ✅ Firebase In-App Messaging - Tin nhắn trong ứng dụng
 
@@ -25,6 +26,9 @@ dependencies:
   
   # Firebase Analytics
   firebase_analytics: ^11.5.0
+  
+  # Firebase Crashlytics
+  firebase_crashlytics: ^4.1.7
   
   # Firebase App Check (Security)
   firebase_app_check: ^0.3.2+7
@@ -188,7 +192,7 @@ firebase projects:list
    - Setup proper Analytics audiences
 
 2. **Advanced Features**:
-   - Firebase Crashlytics cho crash reporting
+   - Firebase Crashlytics cho crash reporting ✅
    - Firebase Remote Config cho feature flags
    - Firebase Performance Monitoring
 
@@ -196,6 +200,163 @@ firebase projects:list
    - Setup server để gửi targeted notifications
    - Implement user segmentation cho analytics
    - Setup automated messaging workflows
+
+## Firebase Crashlytics Usage
+
+### 1. Automatic Crash Reporting
+- **Flutter Framework Errors**: Tự động được báo cáo qua `FlutterError.onError`
+- **Platform Errors**: Được handle bởi `PlatformDispatcher.onError`
+- **Async Errors**: Được catch bởi `runZonedGuarded`
+
+### 2. Manual Error Logging
+```dart
+// Log non-fatal exception
+try {
+  // Some risky operation
+} catch (error, stackTrace) {
+  await FirebaseService().recordException(error, stackTrace, reason: 'API call failed');
+}
+
+// Log custom error
+await FirebaseService().recordError(
+  'Custom error message', 
+  StackTrace.current,
+  reason: 'User action failed'
+);
+```
+
+### 3. Context và Custom Keys
+```dart
+// Set user context
+await FirebaseService().setCrashlyticsUserId('user123');
+
+// Add custom keys for better debugging
+await FirebaseService().setCrashlyticsCustomKey('feature_enabled', true);
+await FirebaseService().setCrashlyticsCustomKey('user_type', 'premium');
+
+// Log contextual message
+await FirebaseService().log('User attempted to check in');
+```
+
+### 4. Domain-specific Logging
+```dart
+// API errors
+await FirebaseService().logApiError('/api/attendance', 'Network timeout');
+
+// Authentication errors  
+await FirebaseService().logAuthError('email_login', 'Invalid credentials');
+
+// Attendance errors
+await FirebaseService().logAttendanceError('check_in', 'Location permission denied');
+```
+
+### 5. Testing Crashlytics
+```dart
+// Force a test crash (only for testing!)
+throw Exception('Test crash for Crashlytics');
+
+// Send test exception
+await FirebaseService().recordError(
+  'Test exception', 
+  StackTrace.current,
+  reason: 'Testing Crashlytics integration'
+);
+```
+
+### 6. Crashlytics Dashboard
+- Truy cập [Firebase Console > Crashlytics](https://console.firebase.google.com/project/personaai-8bba9/crashlytics)
+- Xem crash reports, trends, và user impact
+- Setup alerts cho critical crashes
+- Analyze stack traces và user sessions
+
+## Firebase In-App Messaging Usage
+
+### 1. Automatic Initialization
+- **Data Collection**: Tự động enabled khi app khởi động
+- **Message Display**: Enabled by default cho tất cả screens
+- **Event-based Triggers**: Sử dụng Analytics events để trigger messages
+
+### 2. Campaign Management
+```dart
+// Tạo campaigns trong Firebase Console > In-App Messaging
+// Campaigns có thể dựa trên:
+// - User properties (user_type, subscription_status)
+// - Events (login, screen_visit, feature_usage)
+// - Audience segments từ Analytics
+```
+
+### 3. Programmatic Triggers
+```dart
+// Trigger welcome message cho new users
+await FirebaseService().triggerWelcomeMessage();
+
+// Promote specific features
+await FirebaseService().triggerFeaturePromotion('attendance_tracking');
+
+// Trigger reminders
+await FirebaseService().triggerAttendanceReminder();
+await FirebaseService().triggerTrainingPrompt();
+
+// Request feedback
+await FirebaseService().triggerFeedbackRequest();
+```
+
+### 4. Lifecycle Integration
+```dart
+// Khi user login
+await FirebaseService().onUserLogin();
+
+// Khi user visit screen cụ thể
+await FirebaseService().onScreenVisit('home_page');
+
+// Khi user complete một action
+await FirebaseService().onActionCompleted('check_in');
+```
+
+### 5. Message Control
+```dart
+// Suppress messages cho specific screens (ví dụ: login, splash)
+await FirebaseService().suppressInAppMessages(true);
+
+// Re-enable messages
+await FirebaseService().suppressInAppMessages(false);
+
+// Control data collection
+await FirebaseService().setInAppMessagingDataCollection(true);
+```
+
+### 6. Message Types
+- **Modal**: Fullscreen overlay với call-to-action
+- **Image**: Image-only message với optional action
+- **Top Banner**: Non-intrusive banner ở top
+- **Card**: Card-style message với text và button
+
+### 7. Testing In-App Messages
+```dart
+// Test campaigns in Firebase Console
+// 1. Create test campaign
+// 2. Set audience as "Test devices"
+// 3. Trigger events trong app để test
+// 4. Verify messages appear correctly
+
+// Force trigger events for testing
+await FirebaseService().triggerEvent('test_event', parameters: {
+  'test_mode': true,
+  'user_id': 'test_user'
+});
+```
+
+### 8. Best Practices
+- **Targeting**: Sử dụng user properties để target đúng audience
+- **Frequency**: Set frequency caps để tránh spam users
+- **A/B Testing**: Test different message variants
+- **Analytics**: Track conversion rates và user engagement
+
+### 9. In-App Messaging Dashboard
+- Truy cập [Firebase Console > In-App Messaging](https://console.firebase.google.com/project/personaai-8bba9/inappmessaging)
+- Tạo và quản lý campaigns
+- Xem delivery metrics và conversion rates
+- Setup A/B testing cho message optimization
 
 ## Links
 - [Firebase Console](https://console.firebase.google.com/project/personaai-8bba9)

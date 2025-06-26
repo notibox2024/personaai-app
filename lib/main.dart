@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'dart:async';
 import 'firebase_options.dart';
 import 'themes/themes.dart';
 import 'app_layout.dart';
@@ -17,29 +19,49 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 void main() async {
-  // Đảm bảo Flutter widgets đã được khởi tạo
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Khởi tạo Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Cấu hình Firebase Messaging background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  
-  // Khởi tạo Firebase service
-  await FirebaseService().initialize();
-  
-  // Khởi tạo API service
-  ApiService().initialize(
-    baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 15),
-    sendTimeout: const Duration(seconds: 5),
-  );
-  
-  runApp(const MyApp());
+  // Chạy app trong error zone để catch async errors
+  runZonedGuarded<Future<void>>(() async {
+    // Đảm bảo Flutter widgets đã được khởi tạo
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Khởi tạo Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    // Cấu hình Firebase Messaging background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
+    // Khởi tạo Firebase service
+    await FirebaseService().initialize();
+    
+    // Cấu hình Crashlytics error handling
+    FlutterError.onError = (errorDetails) {
+      FirebaseService().recordFlutterError(errorDetails);
+    };
+    
+    // Catch errors that happen outside of the Flutter context
+    WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+      FirebaseService().recordError(error, stack, reason: 'PlatformDispatcher error');
+      return true;
+    };
+    
+    // Khởi tạo API service
+    ApiService().initialize(
+      baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 5),
+    );
+    
+    // Chạy app
+    runApp(const MyApp());
+  }, (error, stackTrace) {
+    // Log async errors to Firebase Crashlytics
+    print('Async error caught: $error');
+    // Note: Firebase may not be initialized yet when this runs,
+    // so we print to console as fallback
+  });
 }
 
 class MyApp extends StatefulWidget {
