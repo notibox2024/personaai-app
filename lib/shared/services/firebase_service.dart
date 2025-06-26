@@ -1,8 +1,16 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../../features/notifications/data/models/notification_item.dart';
+import '../../features/notifications/data/repositories/local_notification_repository.dart';
+import 'background_message_handler.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -13,6 +21,23 @@ class FirebaseService {
   late FirebaseAnalytics _analytics;
   late FirebaseCrashlytics _crashlytics;
   late FirebaseInAppMessaging _inAppMessaging;
+  late FlutterLocalNotificationsPlugin _localNotifications;
+  late LocalNotificationRepository _notificationRepository;
+  
+  // StreamController for real-time notification updates
+  final StreamController<NotificationItem> _messageController = StreamController<NotificationItem>.broadcast();
+  
+  /// Stream of received notifications
+  Stream<NotificationItem> get onMessageReceived => _messageController.stream;
+  
+  /// Callback khi nhận được notification (app running)
+  Function(NotificationItem)? onNotificationReceived;
+  
+  /// Callback khi user tap notification
+  Function(NotificationItem)? onNotificationTapped;
+  
+  /// Callback khi FCM token update
+  Function(String)? onTokenRefresh;
 
   // Initialize Firebase services
   Future<void> initialize() async {
@@ -20,11 +45,45 @@ class FirebaseService {
     _analytics = FirebaseAnalytics.instance;
     _crashlytics = FirebaseCrashlytics.instance;
     _inAppMessaging = FirebaseInAppMessaging.instance;
+    _notificationRepository = LocalNotificationRepository();
     
+    await _initializeLocalNotifications();
     await _initializeMessaging();
     await _initializeAnalytics();
     await _initializeCrashlytics();
     await _initializeInAppMessaging();
+    
+    // Initialize background message handling
+    await BackgroundNotificationService.initialize();
+  }
+  
+  /// Initialize Flutter Local Notifications
+  Future<void> _initializeLocalNotifications() async {
+    _localNotifications = FlutterLocalNotificationsPlugin();
+    
+    // Android initialization settings
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    // iOS initialization settings
+    const iosSettings = DarwinInitializationSettings(
+      requestSoundPermission: true,
+      requestBadgePermission: true,
+      requestAlertPermission: true,
+    );
+    
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+    
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: _onLocalNotificationTapped,
+    );
+    
+    if (kDebugMode) {
+      print('Local notifications initialized');
+    }
   }
 
   // Initialize Firebase Cloud Messaging
@@ -63,7 +122,8 @@ class FirebaseService {
       if (kDebugMode) {
         print('FCM Token refreshed: $token');
       }
-      // TODO: Gửi token mới lên server
+      // Notify app about token update
+      onTokenRefresh?.call(token);
     });
 
     // Xử lý message khi app đang foreground
@@ -110,16 +170,219 @@ class FirebaseService {
     }
   }
 
+  /// Handle local notification tap
+  void _onLocalNotificationTapped(NotificationResponse response) async {
+    try {
+      final payload = response.payload;
+      if (payload == null) return;
+      
+      // Parse notification ID from payload
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      final notificationId = data['notification_id'] as String?;
+      
+      if (notificationId != null) {
+        // Get notification from database
+        final notification = await _notificationRepository.getNotification(notificationId);
+        if (notification != null) {
+          // Mark as read
+          await _notificationRepository.updateNotificationStatus(
+            notificationId,
+            NotificationStatus.read,
+          );
+          
+          // Notify app
+          onNotificationTapped?.call(notification);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error handling local notification tap: $e');
+      }
+    }
+  }
+
   // Handle foreground messages
-  void _handleForegroundMessage(RemoteMessage message) {
-    // TODO: Implement custom notification display
-    // Có thể sử dụng local notifications hoặc custom UI
+  void _handleForegroundMessage(RemoteMessage message) async {
+    try {
+      if (kDebugMode) {
+        print('Received foreground message: ${message.messageId}');
+        print('Data: ${message.data}');
+      }
+      
+      // Convert to NotificationItem
+      final notificationItem = _convertToNotificationItem(message);
+      
+      // Save to local database
+      await _notificationRepository.insertNotification(notificationItem);
+      
+      // Show local notification
+      await _showLocalNotification(message);
+      
+      // Notify app about new notification
+      onNotificationReceived?.call(notificationItem);
+      
+      // Emit to stream for BLoC
+      _messageController.add(notificationItem);
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error handling foreground message: $e');
+      }
+    }
   }
 
   // Handle message opened app
-  void _handleMessageOpenedApp(RemoteMessage message) {
-    // TODO: Implement navigation logic based on message data
-    // Ví dụ: navigate to specific screen, open deep link
+  void _handleMessageOpenedApp(RemoteMessage message) async {
+    try {
+      if (kDebugMode) {
+        print('Message opened app: ${message.messageId}');
+      }
+      
+      // Convert to NotificationItem
+      final notificationItem = _convertToNotificationItem(message);
+      
+      // Save to local database (if not already saved)
+      final existing = await _notificationRepository.getNotification(notificationItem.id);
+      if (existing == null) {
+        await _notificationRepository.insertNotification(notificationItem);
+      }
+      
+      // Mark as read since user tapped it
+      await _notificationRepository.updateNotificationStatus(
+        notificationItem.id,
+        NotificationStatus.read,
+      );
+      
+      // Notify app about notification tap
+      onNotificationTapped?.call(notificationItem);
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error handling message opened app: $e');
+      }
+    }
+  }
+  
+  /// Convert RemoteMessage to NotificationItem
+  NotificationItem _convertToNotificationItem(RemoteMessage message) {
+    final data = message.data;
+    final notification = message.notification;
+    
+    // Parse notification type
+    final typeString = data['type'] ?? 'general';
+    final type = _parseNotificationType(typeString);
+    
+    // Parse priority
+    final priorityString = data['priority'] ?? 'normal';
+    final priority = _parseNotificationPriority(priorityString);
+    
+    // Parse metadata
+    Map<String, dynamic>? metadata;
+    if (data.containsKey('metadata')) {
+      try {
+        metadata = jsonDecode(data['metadata']) as Map<String, dynamic>;
+      } catch (e) {
+        metadata = null;
+      }
+    }
+    
+    return NotificationItem(
+      id: message.messageId ?? _generateNotificationId(),
+      title: notification?.title ?? data['title'] ?? 'Thông báo',
+      message: notification?.body ?? data['body'] ?? '',
+      type: type,
+      priority: priority,
+      createdAt: DateTime.now(),
+      actionUrl: data['action_url'],
+      metadata: metadata,
+      imageUrl: notification?.android?.imageUrl ?? data['image_url'],
+      senderId: data['sender_id'],
+      senderName: data['sender_name'],
+      isActionable: data['is_actionable'] == 'true' || data['is_actionable'] == '1',
+    );
+  }
+  
+  /// Parse notification type from string
+  NotificationType _parseNotificationType(String typeString) {
+    try {
+      return NotificationType.values.firstWhere(
+        (type) => type.name == typeString,
+      );
+    } catch (e) {
+      return NotificationType.general;
+    }
+  }
+  
+  /// Parse notification priority from string
+  NotificationPriority _parseNotificationPriority(String priorityString) {
+    try {
+      return NotificationPriority.values.firstWhere(
+        (priority) => priority.name == priorityString,
+      );
+    } catch (e) {
+      return NotificationPriority.normal;
+    }
+  }
+  
+  /// Generate unique notification ID if not provided
+  String _generateNotificationId() {
+    return 'fcm_${DateTime.now().millisecondsSinceEpoch}';
+  }
+  
+  /// Show local notification when app is in foreground
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    try {
+      final notification = message.notification;
+      if (notification == null) return;
+      
+      // Create payload with notification ID
+      final payload = jsonEncode({
+        'notification_id': message.messageId ?? _generateNotificationId(),
+        'action_url': message.data['action_url'],
+      });
+      
+      // Android notification details
+      final androidDetails = AndroidNotificationDetails(
+        'personaai_notifications',
+        'PersonaAI Notifications',
+        channelDescription: 'Thông báo từ PersonaAI',
+        importance: Importance.high,
+        priority: Priority.high,
+        ticker: notification.title,
+        icon: '@mipmap/ic_launcher',
+        color: const Color(0xFFFF4100), // Brand color
+        showWhen: true,
+        styleInformation: notification.body != null
+            ? BigTextStyleInformation(notification.body!)
+            : null,
+      );
+      
+      // iOS notification details
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      
+      final notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+      
+      // Show notification
+      await _localNotifications.show(
+        message.hashCode,
+        notification.title,
+        notification.body,
+        notificationDetails,
+        payload: payload,
+      );
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error showing local notification: $e');
+      }
+    }
   }
 
   // Get FCM token
@@ -344,5 +607,10 @@ class FirebaseService {
 
   Future<void> onActionCompleted(String action) async {
     await triggerEvent('action_completed', parameters: {'action': action});
+  }
+
+  /// Dispose resources
+  void dispose() {
+    _messageController.close();
   }
 } 

@@ -11,12 +11,8 @@ import 'app_layout.dart';
 import 'shared/shared_exports.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_exports.dart';
-
-// Background message handler cho Firebase Messaging
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Xử lý tin nhắn khi app ở background
-  print('Handling a background message: ${message.messageId}');
-}
+import 'shared/services/background_message_handler.dart';
+import 'shared/services/notification_demo_service.dart';
 
 void main() async {
   // Chạy app trong error zone để catch async errors
@@ -30,10 +26,14 @@ void main() async {
     );
     
     // Cấu hình Firebase Messaging background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     
     // Khởi tạo Firebase service
     await FirebaseService().initialize();
+    
+    // Khởi tạo demo notification service
+    NotificationDemoService().initialize();
+    await NotificationDemoService().addDemoNotifications();
     
     // Cấu hình Crashlytics error handling
     FlutterError.onError = (errorDetails) {

@@ -152,6 +152,99 @@ class NotificationItem {
     }
   }
 
+  /// Get dynamic action button text dựa trên action_url và type
+  String get actionButtonText {
+    if (!isActionable || actionUrl == null) return '';
+    
+    // Parse action URL để get appropriate button text
+    try {
+      final uri = Uri.parse(actionUrl!);
+      final pathSegments = uri.pathSegments;
+      
+      if (pathSegments.length >= 2) {
+        final module = pathSegments[0];
+        final action = pathSegments[1];
+        
+        // URL structure mapping
+        switch ('/$module/$action') {
+          // Attendance actions
+          case '/attendance/check-in':
+            return 'Chấm công vào';
+          case '/attendance/check-out':
+            return 'Chấm công ra';
+          case '/attendance/supplement':
+            return 'Bổ sung chấm công';
+          case '/attendance/details':
+            return 'Xem chấm công';
+            
+          // Training actions
+          case '/training/register':
+            return 'Đăng ký khóa học';
+          case '/training/continue':
+            return 'Tiếp tục học';
+          case '/training/certificate':
+            return 'Xem chứng chỉ';
+          case '/training/details':
+            return 'Chi tiết khóa học';
+            
+          // Leave actions
+          case '/leave/apply':
+            return 'Nộp đơn nghỉ';
+          case '/leave/details':
+            return 'Xem chi tiết';
+          case '/leave/respond':
+            return 'Phản hồi';
+            
+          // Overtime actions
+          case '/overtime/request':
+            return 'Gửi yêu cầu';
+          case '/overtime/respond':
+            return 'Phản hồi';
+          case '/overtime/details':
+            return 'Chi tiết tăng ca';
+            
+          // System actions
+          case '/system/update':
+            return 'Cập nhật ngay';
+          case '/system/details':
+            return 'Xem chi tiết';
+            
+          // General actions
+          case '/general/read':
+            return 'Đọc thông báo';
+          case '/general/download':
+            return 'Tải xuống';
+        }
+      }
+    } catch (e) {
+      // Invalid URL, fallback to type-based text
+    }
+    
+    // Fallback dựa trên notification type
+    return _getTypeBasedActionText();
+  }
+  
+  /// Get action button text dựa trên notification type (fallback)
+  String _getTypeBasedActionText() {
+    switch (type) {
+      case NotificationType.attendance:
+        return 'Xem chấm công';
+      case NotificationType.training:
+        return 'Xem khóa học';
+      case NotificationType.leave:
+        return 'Xem đơn nghỉ';
+      case NotificationType.overtime:
+        return 'Xem tăng ca';
+      case NotificationType.system:
+        return 'Xem chi tiết';
+      case NotificationType.urgent:
+        return 'Xem ngay';
+      case NotificationType.general:
+      default:
+        return 'Xem chi tiết';
+    }
+  }
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

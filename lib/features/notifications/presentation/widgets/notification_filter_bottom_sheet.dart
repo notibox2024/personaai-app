@@ -1,37 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import '../../data/models/notification_item.dart';
-
-/// Model cho filter options
-class NotificationFilter {
-  final Set<NotificationType> types;
-  final Set<NotificationStatus> statuses;
-  final NotificationPriority? priority;
-
-  const NotificationFilter({
-    this.types = const {},
-    this.statuses = const {},
-    this.priority,
-  });
-
-  NotificationFilter copyWith({
-    Set<NotificationType>? types,
-    Set<NotificationStatus>? statuses,
-    NotificationPriority? priority,
-  }) {
-    return NotificationFilter(
-      types: types ?? this.types,
-      statuses: statuses ?? this.statuses,
-      priority: priority ?? this.priority,
-    );
-  }
-
-  bool get hasActiveFilters => types.isNotEmpty || statuses.isNotEmpty || priority != null;
-
-  NotificationFilter clear() {
-    return const NotificationFilter();
-  }
-}
+import '../../data/models/notification_extensions.dart';
+import '../../data/models/notification_filter.dart';
 
 /// Bottom sheet để lọc thông báo
 class NotificationFilterBottomSheet extends StatefulWidget {

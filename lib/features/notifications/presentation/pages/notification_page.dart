@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../widgets/notification_header.dart';
 import '../widgets/notification_card.dart';
 import '../widgets/notification_filter_bottom_sheet.dart';
+import '../widgets/quick_filter_bar.dart';
 import '../../data/models/notification_item.dart';
+import '../../data/models/notification_filter.dart';
+import '../../data/repositories/local_notification_repository.dart';
+import '../bloc/notification_bloc.dart';
+import '../../../../shared/services/firebase_service.dart';
 
-/// Trang thông báo chính
-class NotificationPage extends StatefulWidget {
+/// Enhanced notification page với BLoC state management
+class NotificationPage extends StatelessWidget {
   final Function(int)? onUnreadCountChanged;
   
   const NotificationPage({
@@ -16,72 +22,44 @@ class NotificationPage extends StatefulWidget {
   });
 
   @override
-  State<NotificationPage> createState() => _NotificationPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => NotificationBloc(
+        repository: LocalNotificationRepository(),
+        firebaseService: FirebaseService(),
+      )..add(const NotificationLoadRequested()),
+      child: NotificationView(
+        onUnreadCountChanged: onUnreadCountChanged,
+      ),
+    );
+  }
 }
 
-class _NotificationPageState extends State<NotificationPage> {
-  List<NotificationItem> _notifications = [];
-  List<NotificationItem> _filteredNotifications = [];
-  NotificationFilter _currentFilter = const NotificationFilter();
+class NotificationView extends StatefulWidget {
+  final Function(int)? onUnreadCountChanged;
+  
+  const NotificationView({
+    super.key,
+    this.onUnreadCountChanged,
+  });
 
   @override
-  void initState() {
-    super.initState();
-    _initializeData();
-  }
+  State<NotificationView> createState() => _NotificationViewState();
+}
 
-  void _initializeData() {
-    _notifications = _getMockNotifications();
-    _applyFilters();
-  }
-
-  void _applyFilters() {
-    _filteredNotifications = _notifications.where((notification) {
-      // Filter by type
-      if (_currentFilter.types.isNotEmpty && 
-          !_currentFilter.types.contains(notification.type)) {
-        return false;
-      }
-
-      // Filter by status
-      if (_currentFilter.statuses.isNotEmpty && 
-          !_currentFilter.statuses.contains(notification.status)) {
-        return false;
-      }
-
-      // Filter by priority
-      if (_currentFilter.priority != null && 
-          notification.priority != _currentFilter.priority) {
-        return false;
-      }
-
-      return true;
-    }).toList();
-
-    // Sort by date (newest first)
-    _filteredNotifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
-    // Notify parent about unread count change after build completes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onUnreadCountChanged?.call(_unreadCount);
-    });
-  }
-
-  int get _unreadCount {
-    return _notifications
-        .where((n) => n.status == NotificationStatus.unread)
-        .length;
-  }
+class _NotificationViewState extends State<NotificationView> {
+  bool _isSearchMode = false;
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    // Set status bar color to match header gradient
+    // Set status bar styling
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light, // White icons on orange background
+        statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
         systemNavigationBarColor: theme.colorScheme.surfaceContainerLowest,
         systemNavigationBarIconBrightness: theme.brightness == Brightness.light 
@@ -93,103 +71,214 @@ class _NotificationPageState extends State<NotificationPage> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      body: RefreshIndicator(
-        onRefresh: _onRefresh,
-        child: CustomScrollView(
-          slivers: [
-            // Scrollable Header (extends to status bar)
-            SliverToBoxAdapter(
-              child: NotificationHeader(
-                onFilterTap: _showFilterBottomSheet,
-                onMarkAllReadTap: _markAllAsRead,
-                unreadCount: _unreadCount,
+      body: BlocConsumer<NotificationBloc, NotificationState>(
+        listener: (context, state) {
+          // Handle unread count changes
+          if (state is NotificationLoaded) {
+            widget.onUnreadCountChanged?.call(state.unreadCount);
+          }
+          
+          // Handle action success messages
+          if (state is NotificationActionSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
               ),
-            ),
-
-            // Top spacing for content
-            SliverToBoxAdapter(
-              child: SafeArea(
-                top: false, // Header already handles top safe area
-                child: const SizedBox(height: 16),
-              ),
-            ),
-
-            // Filter info if active
-            if (_currentFilter.hasActiveFilters)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        TablerIcons.filter,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Đang hiển thị ${_filteredNotifications.length} thông báo đã lọc',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _clearFilters,
-                        child: Icon(
-                          TablerIcons.x,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
+            );
+          }
+          
+          // Handle errors
+          if (state is NotificationError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                action: SnackBarAction(
+                  label: 'Thử lại',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    context.read<NotificationBloc>().add(
+                      const NotificationRefreshRequested(),
+                    );
+                  },
                 ),
               ),
+            );
+          }
+        },
+        builder: (context, state) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              context.read<NotificationBloc>().add(
+                const NotificationRefreshRequested(),
+              );
+            },
+            child: CustomScrollView(
+              slivers: [
+                _buildHeader(context, state),
+                _buildContent(context, state),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-            // Spacing after filter info
-            if (_currentFilter.hasActiveFilters)
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+  Widget _buildHeader(BuildContext context, NotificationState state) {
+    return SliverToBoxAdapter(
+      child: NotificationHeader(
+        onFilterTap: () => _showFilterBottomSheet(context, state),
+        onMarkAllReadTap: () {
+          context.read<NotificationBloc>().add(
+            const NotificationMarkAllAsRead(),
+          );
+        },
+        onSearchChanged: (query) {
+          setState(() {
+            _searchQuery = query;
+            _isSearchMode = query.isNotEmpty;
+          });
+          context.read<NotificationBloc>().add(
+            NotificationSearchChanged(query),
+          );
+        },
+        unreadCount: state is NotificationLoaded ? state.unreadCount : 0,
+        totalCount: state is NotificationLoaded ? state.filteredNotifications.length : 0,
+        isSearchMode: _isSearchMode,
+        searchQuery: _searchQuery,
+      ),
+    );
+  }
 
-            // Notifications list
-            _filteredNotifications.isEmpty
-                ? _buildEmptyState()
-                : SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final notification = _filteredNotifications[index];
-                        return Container(
-                          margin: const EdgeInsets.only(
-                            left: 4,
-                            right: 4,
-                            bottom: 8,
-                          ),
-                          child: NotificationCard(
-                            notification: notification,
-                            onTap: () => _handleNotificationTap(notification),
-                            onMarkRead: () => _toggleReadStatus(notification),
-                            onDelete: () => _deleteNotification(notification),
-                            onAction: () => _handleNotificationAction(notification),
-                          ),
-                        );
-                      },
-                      childCount: _filteredNotifications.length,
+  Widget _buildContent(BuildContext context, NotificationState state) {
+    if (state is NotificationLoading) {
+      return _buildLoadingState();
+    }
+    
+    if (state is NotificationLoaded) {
+      return _buildLoadedState(context, state);
+    }
+    
+    if (state is NotificationError) {
+      return _buildErrorState(context, state);
+    }
+    
+    return _buildLoadingState();
+  }
+
+  Widget _buildLoadedState(BuildContext context, NotificationLoaded state) {
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        // Top spacing
+        SafeArea(
+          top: false,
+          child: const SizedBox(height: 16),
+        ),
+
+        // Quick filter bar
+        QuickFilterBar(
+          currentFilter: state.currentFilter,
+          onFilterChanged: (filter) {
+            context.read<NotificationBloc>().add(
+              NotificationFilterChanged(filter),
+            );
+          },
+          totalCount: state.notifications.length,
+          filteredCount: state.filteredNotifications.length,
+        ),
+
+        // Filter info if active
+        if (state.currentFilter.hasActiveFilters)
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  TablerIcons.filter,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Đang hiển thị ${state.filteredNotifications.length} thông báo đã lọc',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    context.read<NotificationBloc>().add(
+                      const NotificationFilterChanged(NotificationFilter()),
+                    );
+                  },
+                  child: Icon(
+                    TablerIcons.x,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-            // Bottom spacing with safe area
-            SliverToBoxAdapter(
-              child: SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        // Notifications list or empty state
+        if (state.filteredNotifications.isEmpty)
+          _buildEmptyStateContent(context, state)
+        else
+          ...state.filteredNotifications.map((notification) {
+            return Container(
+              margin: const EdgeInsets.only(
+                left: 4,
+                right: 4,
+                bottom: 8,
+              ),
+              child: NotificationCard(
+                notification: notification,
+                onTap: () => _handleNotificationTap(context, notification),
+                onMarkRead: () => _toggleReadStatus(context, notification),
+                onDelete: () => _deleteNotification(context, notification),
+                onAction: () => _handleNotificationAction(context, notification),
+                enableSwipeActions: true,
+              ),
+            );
+          }).toList(),
+
+        // Bottom spacing
+        SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+      ]),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return SliverToBoxAdapter(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Đang tải thông báo...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -197,127 +286,148 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildEmptyState() {
-    final theme = Theme.of(context);
-    
+  Widget _buildErrorState(BuildContext context, NotificationError state) {
     return SliverToBoxAdapter(
       child: Container(
         padding: const EdgeInsets.all(32),
         child: Column(
           children: [
             Icon(
-              _currentFilter.hasActiveFilters 
-                  ? TablerIcons.filter_off 
-                  : TablerIcons.bell_off,
+              TablerIcons.alert_circle,
               size: 64,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              color: Colors.red.withValues(alpha: 0.7),
             ),
             const SizedBox(height: 16),
             Text(
-              _currentFilter.hasActiveFilters 
-                  ? 'Không có thông báo nào phù hợp với bộ lọc'
-                  : 'Chưa có thông báo nào',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              'Đã xảy ra lỗi',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.red,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              _currentFilter.hasActiveFilters 
-                  ? 'Thử thay đổi bộ lọc để xem thêm thông báo'
-                  : 'Thông báo mới sẽ hiển thị tại đây',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              state.message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
-            if (_currentFilter.hasActiveFilters) ...[
-              const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: _clearFilters,
-                child: const Text('Xóa bộ lọc'),
-              ),
-            ],
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                context.read<NotificationBloc>().add(
+                  const NotificationLoadRequested(),
+                );
+              },
+              icon: const Icon(TablerIcons.refresh),
+              label: const Text('Thử lại'),
+            ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildEmptyStateContent(BuildContext context, NotificationLoaded state) {
+    final theme = Theme.of(context);
+    final hasActiveFilters = state.currentFilter.hasActiveFilters || _searchQuery.isNotEmpty;
+    
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            hasActiveFilters ? TablerIcons.filter_off : TablerIcons.bell_off,
+            size: 64,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            hasActiveFilters 
+                ? 'Không có thông báo nào phù hợp'
+                : 'Chưa có thông báo nào',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasActiveFilters 
+                ? 'Thử thay đổi bộ lọc để xem thêm thông báo'
+                : 'Thông báo mới sẽ hiển thị tại đây',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (hasActiveFilters) ...[
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  _searchQuery = '';
+                  _isSearchMode = false;
+                });
+                context.read<NotificationBloc>().add(
+                  const NotificationFilterChanged(NotificationFilter()),
+                );
+                context.read<NotificationBloc>().add(
+                  const NotificationSearchChanged(''),
+                );
+              },
+              child: const Text('Xóa bộ lọc'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // =============== EVENT HANDLERS ===============
 
-  Future<void> _onRefresh() async {
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    _initializeData();
+  void _showFilterBottomSheet(BuildContext context, NotificationState state) {
+    if (state is NotificationLoaded) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) => NotificationFilterBottomSheet(
+          initialFilter: state.currentFilter,
+          onApply: (filter) {
+            context.read<NotificationBloc>().add(
+              NotificationFilterChanged(filter),
+            );
+          },
+        ),
+      );
+    }
   }
 
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NotificationFilterBottomSheet(
-        initialFilter: _currentFilter,
-        onApply: (filter) {
-          setState(() {
-            _currentFilter = filter;
-            _applyFilters();
-          });
-        },
-      ),
-    );
-  }
-
-  void _clearFilters() {
-    setState(() {
-      _currentFilter = const NotificationFilter();
-      _applyFilters();
-    });
-  }
-
-  void _markAllAsRead() {
-    setState(() {
-      _notifications = _notifications.map((n) => n.markAsRead()).toList();
-      _applyFilters();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã đánh dấu tất cả thông báo là đã đọc'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  void _handleNotificationTap(NotificationItem notification) {
+  void _handleNotificationTap(BuildContext context, NotificationItem notification) {
     // Mark as read if unread
     if (notification.status == NotificationStatus.unread) {
-      _toggleReadStatus(notification);
+      context.read<NotificationBloc>().add(
+        NotificationMarkAsRead(notification.id),
+      );
     }
 
     // TODO: Navigate to detail page or perform action
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã mở thông báo: ${notification.title}')),
+      SnackBar(
+        content: Text('Đã mở thông báo: ${notification.title}'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
-  void _toggleReadStatus(NotificationItem notification) {
-    setState(() {
-      final index = _notifications.indexWhere((n) => n.id == notification.id);
-      if (index != -1) {
-        if (notification.status == NotificationStatus.unread) {
-          _notifications[index] = notification.markAsRead();
-        } else {
-          _notifications[index] = notification.markAsUnread();
-        }
-        _applyFilters();
-      }
-    });
+  void _toggleReadStatus(BuildContext context, NotificationItem notification) {
+    context.read<NotificationBloc>().add(
+      NotificationMarkAsRead(notification.id),
+    );
   }
 
-  void _deleteNotification(NotificationItem notification) {
-    // Show confirmation dialog
+  void _deleteNotification(BuildContext context, NotificationItem notification) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -331,7 +441,9 @@ class _NotificationPageState extends State<NotificationPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _performDelete(notification);
+              context.read<NotificationBloc>().add(
+                NotificationDelete(notification.id),
+              );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Xóa'),
@@ -341,132 +453,13 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  void _performDelete(NotificationItem notification) {
-    setState(() {
-      _notifications.removeWhere((n) => n.id == notification.id);
-      _applyFilters();
-    });
-
+  void _handleNotificationAction(BuildContext context, NotificationItem notification) {
+    // TODO: Handle specific notification actions based on action_url
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Đã xóa thông báo'),
-        action: SnackBarAction(
-          label: 'Hoàn tác',
-          onPressed: () {
-            setState(() {
-              _notifications.add(notification);
-              _applyFilters();
-            });
-          },
-        ),
+        content: Text('Xử lý hành động cho: ${notification.title}'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
-  }
-
-  void _handleNotificationAction(NotificationItem notification) {
-    // TODO: Handle specific notification actions
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Xử lý hành động cho: ${notification.title}')),
-    );
-  }
-
-  // =============== MOCK DATA ===============
-
-  List<NotificationItem> _getMockNotifications() {
-    final now = DateTime.now();
-    
-    return [
-      NotificationItem(
-        id: 'notif_001',
-        title: 'Nhắc nhở chấm công',
-        message: 'Bạn chưa chấm công vào hôm nay. Vui lòng chấm công trước 9:00 AM.',
-        type: NotificationType.attendance,
-        status: NotificationStatus.unread,
-        priority: NotificationPriority.high,
-        createdAt: now.subtract(const Duration(minutes: 30)),
-        senderName: 'Hệ thống HR',
-        isActionable: true,
-      ),
-      
-      NotificationItem(
-        id: 'notif_002',
-        title: 'Khóa học mới đã được thêm',
-        message: 'Khóa học "Kỹ năng giao tiếp hiệu quả" đã được thêm vào chương trình đào tạo. Hạn đăng ký: 15/12/2024.',
-        type: NotificationType.training,
-        status: NotificationStatus.unread,
-        priority: NotificationPriority.normal,
-        createdAt: now.subtract(const Duration(hours: 2)),
-        senderName: 'Phòng Đào tạo',
-        isActionable: true,
-      ),
-      
-      NotificationItem(
-        id: 'notif_003',
-        title: 'Đơn nghỉ phép đã được duyệt',
-        message: 'Đơn nghỉ phép từ ngày 20/12/2024 đến 22/12/2024 của bạn đã được phê duyệt.',
-        type: NotificationType.leave,
-        status: NotificationStatus.read,
-        priority: NotificationPriority.normal,
-        createdAt: now.subtract(const Duration(hours: 4)),
-        senderName: 'Nguyễn Thị Manager',
-      ),
-      
-      NotificationItem(
-        id: 'notif_004',
-        title: 'Cập nhật chính sách công ty',
-        message: 'Chính sách làm việc từ xa đã được cập nhật. Vui lòng xem chi tiết trong tài liệu đính kèm.',
-        type: NotificationType.general,
-        status: NotificationStatus.unread,
-        priority: NotificationPriority.high,
-        createdAt: now.subtract(const Duration(hours: 6)),
-        senderName: 'Ban Giám đốc',
-        isActionable: true,
-      ),
-      
-      NotificationItem(
-        id: 'notif_005',
-        title: 'Yêu cầu tăng ca được chấp nhận',
-        message: 'Yêu cầu tăng ca ngày 18/12/2024 từ 18:00-20:00 đã được chấp nhận.',
-        type: NotificationType.overtime,
-        status: NotificationStatus.read,
-        priority: NotificationPriority.normal,
-        createdAt: now.subtract(const Duration(days: 1)),
-        senderName: 'Phòng Nhân sự',
-      ),
-      
-      NotificationItem(
-        id: 'notif_006',
-        title: 'KHẨN CẤP: Sự cố hệ thống',
-        message: 'Hệ thống đang gặp sự cố, một số tính năng có thể không hoạt động bình thường. Chúng tôi đang khắc phục.',
-        type: NotificationType.urgent,
-        status: NotificationStatus.unread,
-        priority: NotificationPriority.urgent,
-        createdAt: now.subtract(const Duration(days: 1, hours: 2)),
-        senderName: 'IT Support',
-        isActionable: true,
-      ),
-      
-      NotificationItem(
-        id: 'notif_007',
-        title: 'Hoàn thành khóa đào tạo',
-        message: 'Chúc mừng! Bạn đã hoàn thành khóa đào tạo "An toàn lao động". Chứng chỉ đã được cấp.',
-        type: NotificationType.training,
-        status: NotificationStatus.read,
-        priority: NotificationPriority.normal,
-        createdAt: now.subtract(const Duration(days: 2)),
-        senderName: 'Phòng Đào tạo',
-      ),
-      
-      NotificationItem(
-        id: 'notif_008',
-        title: 'Cập nhật hệ thống thành công',
-        message: 'Hệ thống đã được cập nhật lên phiên bản mới với nhiều tính năng cải tiến.',
-        type: NotificationType.system,
-        status: NotificationStatus.read,
-        priority: NotificationPriority.low,
-        createdAt: now.subtract(const Duration(days: 3)),
-        senderName: 'IT Department',
-      ),
-    ];
   }
 } 
