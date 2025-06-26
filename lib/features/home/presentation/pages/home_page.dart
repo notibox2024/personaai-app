@@ -64,16 +64,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Set status bar content màu trắng cho header nền đậm
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light, // Icons màu trắng
+        statusBarIconBrightness: Brightness.light, // Icons màu trắng cho header sẫm
         statusBarBrightness: Brightness.dark,      // Cho iOS
       ),
-    );
-
-    return Scaffold(
+      child: Scaffold(
       // Sử dụng surfaceContainerLowest làm background chính để tạo contrast với cards (surface)
       // Light theme: surfaceContainerLowest (~#FAFAFA) vs surface (#FFFFFF)  
       // Dark theme: surfaceContainerLowest (~#0F0F0F) vs surface (#1E1E1E)
@@ -158,7 +155,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ],
         ),
       ),
-    );
+    ));
   }
 
   // =============== LOCATION METHODS ===============

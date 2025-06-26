@@ -26,16 +26,32 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   // Theme mode state management
   ThemeMode _themeMode = ThemeMode.system;
 
-  // Function để toggle theme
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Function để toggle theme với logic thông minh
   void toggleTheme() {
     setState(() {
       switch (_themeMode) {
         case ThemeMode.system:
-          _themeMode = ThemeMode.light;
+          // Khi ở system mode, toggle dựa trên brightness hiện tại
+          final currentBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+          _themeMode = currentBrightness == Brightness.light 
+              ? ThemeMode.dark 
+              : ThemeMode.light;
           break;
         case ThemeMode.light:
           _themeMode = ThemeMode.dark;
