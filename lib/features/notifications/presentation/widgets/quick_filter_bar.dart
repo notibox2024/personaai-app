@@ -24,7 +24,7 @@ class QuickFilterBar extends StatelessWidget {
     
     return Container(
       height: 60,
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 0),
       child: Column(
         children: [
           // Filter chips row
@@ -131,11 +131,10 @@ class QuickFilterBar extends StatelessWidget {
               ],
             ),
           ),
-          
           // Filter count indicator
           if (currentFilter.hasActiveFilters)
             Container(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Hiển thị $filteredCount/$totalCount thông báo',
                 style: theme.textTheme.bodySmall?.copyWith(

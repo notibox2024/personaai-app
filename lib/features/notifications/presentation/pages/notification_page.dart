@@ -73,12 +73,23 @@ class _NotificationViewState extends State<NotificationView> {
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       body: BlocConsumer<NotificationBloc, NotificationState>(
         listener: (context, state) {
-          // Handle unread count changes
+          // Handle unread count changes and success messages
           if (state is NotificationLoaded) {
             widget.onUnreadCountChanged?.call(state.unreadCount);
+            
+            // Show success message if available
+            if (state.successMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.successMessage!),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
           
-          // Handle action success messages
+          // Handle action success messages (legacy - can be removed later)
           if (state is NotificationActionSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -422,9 +433,15 @@ class _NotificationViewState extends State<NotificationView> {
   }
 
   void _toggleReadStatus(BuildContext context, NotificationItem notification) {
-    context.read<NotificationBloc>().add(
-      NotificationMarkAsRead(notification.id),
-    );
+    if (notification.status == NotificationStatus.unread) {
+      context.read<NotificationBloc>().add(
+        NotificationMarkAsRead(notification.id),
+      );
+    } else {
+      context.read<NotificationBloc>().add(
+        NotificationMarkAsUnread(notification.id),
+      );
+    }
   }
 
   void _deleteNotification(BuildContext context, NotificationItem notification) {

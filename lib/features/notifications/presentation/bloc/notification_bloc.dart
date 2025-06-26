@@ -51,6 +51,15 @@ class NotificationMarkAsRead extends NotificationEvent {
   List<Object?> get props => [notificationId];
 }
 
+class NotificationMarkAsUnread extends NotificationEvent {
+  final String notificationId;
+  
+  const NotificationMarkAsUnread(this.notificationId);
+  
+  @override
+  List<Object?> get props => [notificationId];
+}
+
 class NotificationMarkAllAsRead extends NotificationEvent {
   const NotificationMarkAllAsRead();
 }
@@ -106,6 +115,7 @@ class NotificationLoaded extends NotificationState {
   final String searchQuery;
   final int unreadCount;
   final bool isRefreshing;
+  final String? successMessage;
 
   const NotificationLoaded({
     required this.notifications,
@@ -114,6 +124,7 @@ class NotificationLoaded extends NotificationState {
     required this.searchQuery,
     required this.unreadCount,
     this.isRefreshing = false,
+    this.successMessage,
   });
 
   @override
@@ -124,6 +135,7 @@ class NotificationLoaded extends NotificationState {
     searchQuery,
     unreadCount,
     isRefreshing,
+    successMessage,
   ];
 
   NotificationLoaded copyWith({
@@ -133,6 +145,7 @@ class NotificationLoaded extends NotificationState {
     String? searchQuery,
     int? unreadCount,
     bool? isRefreshing,
+    String? successMessage,
   }) {
     return NotificationLoaded(
       notifications: notifications ?? this.notifications,
@@ -141,6 +154,7 @@ class NotificationLoaded extends NotificationState {
       searchQuery: searchQuery ?? this.searchQuery,
       unreadCount: unreadCount ?? this.unreadCount,
       isRefreshing: isRefreshing ?? this.isRefreshing,
+      successMessage: successMessage,
     );
   }
 }
@@ -194,6 +208,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     on<NotificationFilterChanged>(_onFilterChanged);
     on<NotificationSearchChanged>(_onSearchChanged);
     on<NotificationMarkAsRead>(_onMarkAsRead);
+    on<NotificationMarkAsUnread>(_onMarkAsUnread);
     on<NotificationMarkAllAsRead>(_onMarkAllAsRead);
     on<NotificationDelete>(_onDelete);
     on<NotificationBulkDelete>(_onBulkDelete);
@@ -321,21 +336,97 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationMarkAsRead event,
     Emitter<NotificationState> emit,
   ) async {
+    final currentState = state;
+    if (currentState is! NotificationLoaded) return;
+
+    // Optimistic update: Update UI immediately
+    final updatedNotifications = currentState.notifications.map((notification) {
+      if (notification.id == event.notificationId) {
+        return notification.copyWith(
+          status: NotificationStatus.read,
+          readAt: DateTime.now(),
+        );
+      }
+      return notification;
+    }).toList();
+
+    final newUnreadCount = updatedNotifications.where((n) => n.status == NotificationStatus.unread).length;
+    
+    final filteredNotifications = _applyFiltersAndSearch(
+      updatedNotifications,
+      currentState.currentFilter,
+      currentState.searchQuery,
+    );
+
+    // Emit updated state immediately
+    emit(currentState.copyWith(
+      notifications: updatedNotifications,
+      filteredNotifications: filteredNotifications,
+      unreadCount: newUnreadCount,
+      successMessage: 'Đã đánh dấu thông báo là đã đọc',
+    ));
+
+    // Update database in background
     try {
       await _repository.updateNotificationStatus(
         event.notificationId,
         NotificationStatus.read,
       );
-      
-      // Refresh data
-      add(const NotificationRefreshRequested());
-      
-      emit(const NotificationActionSuccess(
-        'Đã đánh dấu thông báo là đã đọc',
-        NotificationActionType.markRead,
-      ));
     } catch (error) {
+      // Rollback on error
+      emit(currentState.copyWith(
+        successMessage: null,
+      ));
       emit(NotificationError('Lỗi đánh dấu đã đọc: $error'));
+    }
+  }
+
+  Future<void> _onMarkAsUnread(
+    NotificationMarkAsUnread event,
+    Emitter<NotificationState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! NotificationLoaded) return;
+
+    // Optimistic update: Update UI immediately
+    final updatedNotifications = currentState.notifications.map((notification) {
+      if (notification.id == event.notificationId) {
+        return notification.copyWith(
+          status: NotificationStatus.unread,
+          readAt: null, // Clear read timestamp
+        );
+      }
+      return notification;
+    }).toList();
+
+    final newUnreadCount = updatedNotifications.where((n) => n.status == NotificationStatus.unread).length;
+    
+    final filteredNotifications = _applyFiltersAndSearch(
+      updatedNotifications,
+      currentState.currentFilter,
+      currentState.searchQuery,
+    );
+
+    // Emit updated state immediately
+    emit(currentState.copyWith(
+      notifications: updatedNotifications,
+      filteredNotifications: filteredNotifications,
+      unreadCount: newUnreadCount,
+      successMessage: 'Đã đánh dấu thông báo là chưa đọc',
+    ));
+
+    // Update database in background
+    try {
+      await _repository.updateNotificationStatus(
+        event.notificationId,
+        NotificationStatus.unread,
+      );
+    } catch (error) {
+      // Rollback on error
+      emit(currentState.copyWith(
+        successMessage: null,
+      ));
+      emit(NotificationError('Lỗi đánh dấu chưa đọc: $error'));
     }
   }
 
@@ -343,17 +434,42 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationMarkAllAsRead event,
     Emitter<NotificationState> emit,
   ) async {
+    final currentState = state;
+    if (currentState is! NotificationLoaded) return;
+
+    // Optimistic update: Mark all as read immediately
+    final updatedNotifications = currentState.notifications.map((notification) {
+      if (notification.status == NotificationStatus.unread) {
+        return notification.copyWith(
+          status: NotificationStatus.read,
+          readAt: DateTime.now(),
+        );
+      }
+      return notification;
+    }).toList();
+
+    final filteredNotifications = _applyFiltersAndSearch(
+      updatedNotifications,
+      currentState.currentFilter,
+      currentState.searchQuery,
+    );
+
+    // Emit updated state immediately (unread count should be 0)
+    emit(currentState.copyWith(
+      notifications: updatedNotifications,
+      filteredNotifications: filteredNotifications,
+      unreadCount: 0,
+      successMessage: 'Đã đánh dấu tất cả thông báo là đã đọc',
+    ));
+
+    // Update database in background
     try {
       await _repository.markAllAsRead();
-      
-      // Refresh data
-      add(const NotificationRefreshRequested());
-      
-      emit(const NotificationActionSuccess(
-        'Đã đánh dấu tất cả thông báo là đã đọc',
-        NotificationActionType.markAllRead,
-      ));
     } catch (error) {
+      // Rollback on error
+      emit(currentState.copyWith(
+        successMessage: null,
+      ));
       emit(NotificationError('Lỗi đánh dấu tất cả đã đọc: $error'));
     }
   }
@@ -362,17 +478,53 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationDelete event,
     Emitter<NotificationState> emit,
   ) async {
+    final currentState = state;
+    if (currentState is! NotificationLoaded) return;
+
+    // Store the notification for rollback
+    final deletedNotification = currentState.notifications.firstWhere(
+      (n) => n.id == event.notificationId,
+    );
+
+    // Optimistic update: Remove notification immediately
+    final updatedNotifications = currentState.notifications
+        .where((notification) => notification.id != event.notificationId)
+        .toList();
+
+    final newUnreadCount = updatedNotifications.where((n) => n.status == NotificationStatus.unread).length;
+    
+    final filteredNotifications = _applyFiltersAndSearch(
+      updatedNotifications,
+      currentState.currentFilter,
+      currentState.searchQuery,
+    );
+
+    // Emit updated state immediately
+    emit(currentState.copyWith(
+      notifications: updatedNotifications,
+      filteredNotifications: filteredNotifications,
+      unreadCount: newUnreadCount,
+      successMessage: 'Đã xóa thông báo',
+    ));
+
+    // Delete from database in background
     try {
       await _repository.deleteNotification(event.notificationId);
-      
-      // Refresh data
-      add(const NotificationRefreshRequested());
-      
-      emit(const NotificationActionSuccess(
-        'Đã xóa thông báo',
-        NotificationActionType.delete,
-      ));
     } catch (error) {
+      // Rollback on error - add notification back to original position
+      final originalNotifications = [...currentState.notifications];
+      final originalFiltered = _applyFiltersAndSearch(
+        originalNotifications,
+        currentState.currentFilter,
+        currentState.searchQuery,
+      );
+      
+      emit(currentState.copyWith(
+        notifications: originalNotifications,
+        filteredNotifications: originalFiltered,
+        unreadCount: currentState.unreadCount,
+        successMessage: null,
+      ));
       emit(NotificationError('Lỗi xóa thông báo: $error'));
     }
   }
@@ -386,13 +538,8 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         await _repository.deleteNotification(id);
       }
       
-      // Refresh data
-      add(const NotificationRefreshRequested());
-      
-      emit(NotificationActionSuccess(
-        'Đã xóa ${event.notificationIds.length} thông báo',
-        NotificationActionType.bulkDelete,
-      ));
+      // Refresh data with success message
+      await _refreshData(emit, successMessage: 'Đã xóa ${event.notificationIds.length} thông báo');
     } catch (error) {
       emit(NotificationError('Lỗi xóa nhiều thông báo: $error'));
     }
@@ -408,10 +555,37 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         // Insert new notification into database
         await _repository.insertNotification(event.notification);
         
-        // Refresh data to get latest notifications
-        add(const NotificationRefreshRequested());
+        // Refresh data immediately
+        await _refreshData(emit);
       } catch (error) {
         emit(NotificationError('Lỗi xử lý thông báo mới: $error'));
+      }
+    }
+  }
+
+  /// Refresh data without triggering another event
+  Future<void> _refreshData(Emitter<NotificationState> emit, {String? successMessage}) async {
+    final currentState = state;
+    if (currentState is NotificationLoaded) {
+      try {
+        final notifications = await _repository.getFilteredNotifications();
+        final unreadCount = await _repository.getUnreadCount();
+        
+        final filtered = _applyFiltersAndSearch(
+          notifications,
+          currentState.currentFilter,
+          currentState.searchQuery,
+        );
+        
+        emit(currentState.copyWith(
+          notifications: notifications,
+          filteredNotifications: filtered,
+          unreadCount: unreadCount,
+          isRefreshing: false,
+          successMessage: successMessage,
+        ));
+      } catch (error) {
+        emit(NotificationError('Lỗi refresh thông báo: $error'));
       }
     }
   }

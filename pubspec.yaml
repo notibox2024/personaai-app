@@ -73,7 +73,7 @@ dependencies:
   firebase_analytics: ^11.5.0
   
   # Firebase Crashlytics
-  firebase_crashlytics: ^4.1.7
+  firebase_crashlytics: ^4.3.7
   
   # Firebase App Check (Security)
   firebase_app_check: ^0.3.2+7
