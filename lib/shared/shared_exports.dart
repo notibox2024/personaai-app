@@ -12,6 +12,7 @@ export 'widgets/location_permission_dialog.dart';
 export 'services/api_service.dart';
 export 'services/weather_service.dart';
 export 'services/location_service.dart';
+export 'services/firebase_service.dart';
 
 // ============== MODELS ==============
 export 'models/weather_data.dart';

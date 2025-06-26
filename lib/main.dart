@@ -1,13 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
 import 'themes/themes.dart';
 import 'app_layout.dart';
 import 'shared/shared_exports.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_exports.dart';
 
-void main() {
+// Background message handler cho Firebase Messaging
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Xử lý tin nhắn khi app ở background
+  print('Handling a background message: ${message.messageId}');
+}
+
+void main() async {
+  // Đảm bảo Flutter widgets đã được khởi tạo
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Khởi tạo Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Cấu hình Firebase Messaging background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  
+  // Khởi tạo Firebase service
+  await FirebaseService().initialize();
+  
   // Khởi tạo API service
   ApiService().initialize(
     baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn

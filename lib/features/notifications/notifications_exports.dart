@@ -1,5 +1,6 @@
 // Data Models
 export 'data/models/notification_item.dart';
+export 'data/models/firebase_notification.dart';
 
 // Presentation
 export 'presentation/pages/notification_page.dart';
