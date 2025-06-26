@@ -188,13 +188,27 @@ class _NotificationHeaderState extends State<NotificationHeader>
 
                 const SizedBox(height: 16),
 
-                // Search bar
+                // Search bar with enhanced animation
                 AnimatedBuilder(
                   animation: _searchAnimation,
                   builder: (context, child) {
-                    return SizeTransition(
-                      sizeFactor: _searchAnimation,
-                      child: _buildSearchBar(theme),
+                    return ClipRect(
+                      child: SizeTransition(
+                        sizeFactor: _searchAnimation,
+                        child: FadeTransition(
+                          opacity: _searchAnimation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, -0.2),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                              parent: _animationController,
+                              curve: Curves.easeOutBack,
+                            )),
+                            child: _buildSearchBar(theme),
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -231,12 +245,21 @@ class _NotificationHeaderState extends State<NotificationHeader>
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        // Glass morphism effect
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.3),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1,
         ),
+        // Subtle shadow for depth
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
         controller: _searchController,
@@ -244,37 +267,60 @@ class _NotificationHeaderState extends State<NotificationHeader>
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w500,
+          fontSize: 16,
         ),
         decoration: InputDecoration(
           hintText: 'Tìm kiếm thông báo...',
           hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: Colors.white.withValues(alpha: 0.6),
             fontWeight: FontWeight.w400,
+            fontSize: 16,
           ),
-          prefixIcon: Icon(
-            TablerIcons.search,
-            color: Colors.white.withValues(alpha: 0.7),
-            size: 20,
+          prefixIcon: Container(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              TablerIcons.search,
+              color: Colors.white.withValues(alpha: 0.8),
+              size: 20,
+            ),
           ),
           suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    widget.onSearchChanged?.call('');
-                  },
-                  icon: Icon(
-                    TablerIcons.x,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    size: 18,
+              ? Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      widget.onSearchChanged?.call('');
+                    },
+                    icon: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        TablerIcons.x,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        size: 16,
+                      ),
+                    ),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(32, 32),
+                      padding: EdgeInsets.zero,
+                    ),
                   ),
                 )
               : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+            horizontal: 20,
+            vertical: 16,
           ),
+          // Remove default TextField background
+          filled: false,
         ),
+        // Auto focus when expanded
+        autofocus: _isSearchExpanded,
       ),
     );
   }
