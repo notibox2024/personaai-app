@@ -7,7 +7,8 @@
 ### 📱 Core Features
 - **Chấm công thông minh**: Check-in/out với định vị GPS, theo dõi giờ làm việc
 - **Dashboard tương tác**: Thống kê thời gian thực, hiệu suất làm việc
-- **Quản lý thông báo**: Hệ thống thông báo đẩy với Firebase
+- **Quản lý thông báo**: Hệ thống thông báo đẩy và in-app messaging với Firebase
+- **Campaigns tương tác**: Tin nhắn trong ứng dụng theo hành vi người dùng
 - **Hồ sơ cá nhân**: Quản lý thông tin nhân viên, thành tích
 - **Đào tạo trực tuyến**: Khóa học, tiến độ học tập
 
@@ -20,7 +21,8 @@
 ### 🔧 Technical Features
 - **Offline Support**: Hoạt động không cần mạng với Local Storage
 - **Real-time Updates**: Cập nhật dữ liệu tức thời
-- **Security**: Bảo mật với Flutter Secure Storage
+- **Security**: Bảo mật với Flutter Secure Storage và Firebase App Check
+- **App Protection**: Chống fraud và phishing với Firebase App Check
 - **Performance**: Tối ưu hiệu suất và bộ nhớ
 
 ## 📁 Cấu trúc dự án
@@ -87,7 +89,9 @@ lib/
 ### Firebase Integration
 - **firebase_core**: Firebase core
 - **firebase_messaging**: Push notifications
+- **firebase_in_app_messaging**: In-app messaging và campaigns
 - **firebase_analytics**: Analytics
+- **firebase_app_check**: App security và protection
 
 ### Development Tools
 - **flutter_lints**: Code quality
@@ -120,6 +124,7 @@ flutter pub get
 ```bash
 # Thêm google-services.json cho Android
 # Thêm GoogleService-Info.plist cho iOS
+# Cấu hình Firebase App Check cho bảo mật (khuyến nghị)
 ```
 
 4. **Tạo app icons**
@@ -258,10 +263,12 @@ Dự án này thuộc sở hữu của KienlongBank. Mọi quyền được bả
 ### Version 1.0.0+1
 - ✅ Tính năng chấm công cơ bản
 - ✅ Dashboard và thống kê
-- ✅ Hệ thống thông báo
+- ✅ Hệ thống thông báo (Push + In-App)
+- ✅ Campaigns và messaging tương tác
 - ✅ Quản lý hồ sơ cá nhân
 - ✅ Dark/Light theme
 - ✅ Responsive design
+- ✅ Bảo mật với Firebase App Check
 
 ### Upcoming Features
 - 🔄 Real-time synchronization

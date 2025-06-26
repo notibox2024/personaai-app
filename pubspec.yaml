@@ -71,6 +71,12 @@ dependencies:
   
   # Firebase Analytics
   firebase_analytics: ^11.5.0
+  
+  # Firebase App Check (Security)
+  firebase_app_check: ^0.3.2+7
+  
+  # Firebase In-App Messaging
+  firebase_in_app_messaging: ^0.8.1+7
 
 dev_dependencies:
   flutter_test:
