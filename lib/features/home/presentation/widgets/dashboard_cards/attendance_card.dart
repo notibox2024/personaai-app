@@ -63,7 +63,7 @@ class AttendanceCard extends StatelessWidget {
                     Text(
                       'Giờ vào',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -75,7 +75,7 @@ class AttendanceCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: attendanceInfo.checkInTime != null
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           ),
                         ),
                         if (attendanceInfo.isLate) ...[
@@ -98,7 +98,7 @@ class AttendanceCard extends StatelessWidget {
                     Text(
                       'Giờ ra',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -110,7 +110,7 @@ class AttendanceCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: attendanceInfo.checkOutTime != null
                                 ? theme.colorScheme.secondary
-                                : theme.colorScheme.onSurfaceVariant,
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           ),
                         ),
                         if (attendanceInfo.isEarlyLeave) ...[
@@ -141,7 +141,7 @@ class AttendanceCard extends StatelessWidget {
                     Text(
                       'Tổng giờ',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -149,7 +149,7 @@ class AttendanceCard extends StatelessWidget {
                       attendanceInfo.workedTimeString,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.tertiary,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                   ],
@@ -160,21 +160,21 @@ class AttendanceCard extends StatelessWidget {
           
           if (attendanceInfo.location.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Divider(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+            Divider(color: theme.colorScheme.outline.withValues(alpha: 0.3)),
             const SizedBox(height: 12),
             Row(
               children: [
                 Icon(
                   TablerIcons.map_pin,
                   size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     attendanceInfo.location,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     ),
                   ),
                 ),
