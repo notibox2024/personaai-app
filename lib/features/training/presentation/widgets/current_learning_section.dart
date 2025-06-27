@@ -28,14 +28,14 @@ class CurrentLearningSection extends StatelessWidget {
     return SizedBox(
       height: 180,
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: progressList.length,
         itemBuilder: (context, index) {
           final progress = progressList[index];
           return Container(
             width: 280,
-            margin: EdgeInsets.only(right: index < progressList.length - 1 ? 0 : 0),
+            margin: EdgeInsets.only(left: index == 0 ? 0 : 16), // chỉ card từ thứ 2 trở đi mới có margin
             child: _buildProgressCard(context, progress),
           );
         },
@@ -47,8 +47,9 @@ class CurrentLearningSection extends StatelessWidget {
     final theme = Theme.of(context);
     
     return CustomCard(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(0),
+        padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
