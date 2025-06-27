@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:logger/logger.dart';
 import '../../data/models/notification_item.dart';
 import '../../data/models/notification_filter.dart';
 import '../../data/repositories/local_notification_repository.dart';
@@ -191,7 +192,7 @@ enum NotificationActionType {
 class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   final LocalNotificationRepository _repository;
   final FirebaseService _firebaseService;
-  
+  final logger = Logger();
   late StreamSubscription<NotificationItem> _notificationSubscription;
   late StreamSubscription<int> _unreadCountSubscription;
   
@@ -227,7 +228,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
       onError: (error) {
         // Log error instead of adding to event stream
         if (kDebugMode) {
-          print('Error receiving real-time notification: $error');
+          logger.e('Error receiving real-time notification: $error');
         }
       },
     );

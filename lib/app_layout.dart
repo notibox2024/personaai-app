@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
+import 'package:logger/logger.dart';
 import 'shared/widgets/bottom_navigation.dart';
 import 'features/home/presentation/pages/home_page.dart';
 import 'features/attendance/presentation/pages/attendance_page.dart';
@@ -28,6 +29,7 @@ class _AppLayoutState extends State<AppLayout> {
   final PageController _pageController = PageController();
   int _notificationUnreadCount = 0;
   late LocalNotificationRepository _notificationRepository;
+  final logger = Logger();
   
   @override
   void initState() {
@@ -58,7 +60,7 @@ class _AppLayoutState extends State<AppLayout> {
       await _updateUnreadCount();
       
     } catch (e) {
-      print('Error initializing notifications: $e');
+      logger.e('Error initializing notifications: $e');
     }
   }
   
@@ -150,7 +152,7 @@ class _AppLayoutState extends State<AppLayout> {
         });
       }
     } catch (e) {
-      print('Error updating unread count: $e');
+      logger.e('Error updating unread count: $e');
     }
   }
 

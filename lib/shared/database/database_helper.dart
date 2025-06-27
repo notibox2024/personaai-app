@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 
 /// Singleton class để quản lý SQLite database
 class DatabaseHelper {
@@ -8,7 +9,7 @@ class DatabaseHelper {
   static const int _databaseVersion = 1;
   
   static Database? _database;
-  
+  final logger = Logger();
   /// Private constructor cho singleton pattern
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -25,7 +26,7 @@ class DatabaseHelper {
       final path = join(await getDatabasesPath(), _databaseName);
       
       if (kDebugMode) {
-        print('Database path: $path');
+        logger.i('Database path: $path');
       }
       
       return await openDatabase(
@@ -37,13 +38,13 @@ class DatabaseHelper {
           // Enable foreign key constraints
           await db.execute('PRAGMA foreign_keys = ON');
           if (kDebugMode) {
-            print('Database opened successfully');
+            logger.i('Database opened successfully');
           }
         },
       );
     } catch (e) {
       if (kDebugMode) {
-        print('Error initializing database: $e');
+        logger.e('Error initializing database: $e');
       }
       rethrow;
     }
@@ -84,7 +85,7 @@ class DatabaseHelper {
     });
     
     if (kDebugMode) {
-      print('Database tables created successfully');
+      logger.i('Database tables created successfully');
     }
   }
   
@@ -124,7 +125,7 @@ class DatabaseHelper {
     ''');
     
     if (kDebugMode) {
-      print('Database indexes created successfully');
+      logger.i('Database indexes created successfully');
     }
   }
   
@@ -133,7 +134,7 @@ class DatabaseHelper {
   /// Handle database upgrades/migrations
   Future<void> _upgradeDatabase(Database db, int oldVersion, int newVersion) async {
     if (kDebugMode) {
-      print('Upgrading database from version $oldVersion to $newVersion');
+      logger.i('Upgrading database from version $oldVersion to $newVersion');
     }
     
     // Future migrations will be handled here
@@ -151,7 +152,7 @@ class DatabaseHelper {
         break;
       default:
         if (kDebugMode) {
-          print('No migration needed for version $version');
+          logger.i('No migration needed for version $version');
         }
     }
   }
@@ -163,7 +164,7 @@ class DatabaseHelper {
       await db.close();
       _database = null;
       if (kDebugMode) {
-        print('Database closed');
+        logger.i('Database closed');
       }
     }
   }
@@ -175,11 +176,11 @@ class DatabaseHelper {
       await databaseFactory.deleteDatabase(path);
       _database = null;
       if (kDebugMode) {
-        print('Database deleted successfully');
+        logger.i('Database deleted successfully');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error deleting database: $e');
+        logger.e('Error deleting database: $e');
       }
       rethrow;
     }
@@ -218,7 +219,7 @@ class DatabaseHelper {
       };
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting database info: $e');
+        logger.e('Error getting database info: $e');
       }
       return {'error': e.toString()};
     }
@@ -236,11 +237,11 @@ class DatabaseHelper {
       await db.execute('ANALYZE');
       
       if (kDebugMode) {
-        print('Database maintenance completed');
+        logger.i('Database maintenance completed');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error performing database maintenance: $e');
+        logger.e('Error performing database maintenance: $e');
       }
       rethrow;
     }
@@ -255,13 +256,13 @@ class DatabaseHelper {
       final isOk = result.isNotEmpty && result.first.values.first == 'ok';
       
       if (kDebugMode) {
-        print('Database integrity check: ${isOk ? 'PASS' : 'FAIL'}');
+        logger.i('Database integrity check: ${isOk ? 'PASS' : 'FAIL'}');
       }
       
       return isOk;
     } catch (e) {
       if (kDebugMode) {
-        print('Error checking database integrity: $e');
+        logger.e('Error checking database integrity: $e');
       }
       return false;
     }

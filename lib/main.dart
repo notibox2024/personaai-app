@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:logger/logger.dart';
 import 'dart:async';
 import 'firebase_options.dart';
 import 'themes/themes.dart';
@@ -12,9 +12,9 @@ import 'shared/shared_exports.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_exports.dart';
 import 'shared/services/background_message_handler.dart';
-import 'shared/services/notification_demo_service.dart';
 
 void main() async {
+  final logger = Logger();
   // Chạy app trong error zone để catch async errors
   runZonedGuarded<Future<void>>(() async {
     // Đảm bảo Flutter widgets đã được khởi tạo
@@ -58,7 +58,7 @@ void main() async {
     runApp(const MyApp());
   }, (error, stackTrace) {
     // Log async errors to Firebase Crashlytics
-    print('Async error caught: $error');
+    logger.e('Async error caught: $error');
     // Note: Firebase may not be initialized yet when this runs,
     // so we print to console as fallback
   });

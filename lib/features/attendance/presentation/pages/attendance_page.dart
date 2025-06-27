@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 import '../widgets/attendance_header.dart';
 import '../widgets/check_in_out_section.dart';
@@ -33,10 +34,10 @@ class _AttendancePageState extends State<AttendancePage> with WidgetsBindingObse
   static const WorkplaceLocation _workplaceLocation = WorkplaceLocation(
     id: 'main_office',
     name: 'Văn phòng chính',
-    latitude: 10.762622, // Tọa độ mẫu ở TP.HCM
-    longitude: 106.660172,
+    latitude: 21.0285, // Tọa độ Nam Từ Liêm, Hà Nội
+    longitude: 105.8542,
     radiusInMeters: 100.0,
-    address: '123 Đường ABC, Quận 1, TP.HCM',
+    address: '2QJH+2F Nam Từ Liêm, Hà Nội, Việt Nam',
   );
 
   @override
@@ -280,11 +281,20 @@ class _AttendancePageState extends State<AttendancePage> with WidgetsBindingObse
 
     try {
       final position = await LocationService.getCurrentLocation();
+      final wifiSSID = await LocationService.getCurrentWifiSSID();
+      final wifiBSSID = await LocationService.getCurrentWifiBSSID();
+      // Định nghĩa SSID và BSSID hợp lệ của văn phòng (có thể lấy từ config/server)
+      const officeWifiSSIDs = ['KienlongBank_Office_5G'];
+      const officeWifiBSSIDs = ['00:11:22:33:44:55']; // Thay bằng BSSID thực tế của văn phòng
+      final isOfficeWifi = wifiSSID != null && officeWifiSSIDs.contains(wifiSSID)
+        && wifiBSSID != null && officeWifiBSSIDs.contains(wifiBSSID);
       
       if (position == null) {
         _updateLocationData(_locationData.copyWith(
           validationStatus: LocationValidationStatus.invalid,
           validationMessage: 'Không thể lấy vị trí',
+          wifiSSID: wifiSSID,
+          isOfficeWifi: isOfficeWifi,
         ));
         return;
       }
@@ -294,6 +304,8 @@ class _AttendancePageState extends State<AttendancePage> with WidgetsBindingObse
         _updateLocationData(_locationData.copyWith(
           validationStatus: LocationValidationStatus.warning,
           validationMessage: 'Độ chính xác thấp: ±${position.accuracy.round()}m',
+          wifiSSID: wifiSSID,
+          isOfficeWifi: isOfficeWifi,
         ));
         return;
       }
@@ -322,7 +334,8 @@ class _AttendancePageState extends State<AttendancePage> with WidgetsBindingObse
             position.longitude,
           ),
           isInOfficeRadius: true,
-          isOfficeWifi: false, // TODO: Implement WiFi detection
+          wifiSSID: wifiSSID,
+          isOfficeWifi: isOfficeWifi,
           validationStatus: LocationValidationStatus.valid,
           validationMessage: 'Vị trí hợp lệ - ${(distance).round()}m từ văn phòng',
           timestamp: DateTime.now(),
@@ -337,16 +350,25 @@ class _AttendancePageState extends State<AttendancePage> with WidgetsBindingObse
             position.longitude,
           ),
           isInOfficeRadius: false,
-          isOfficeWifi: false,
+          wifiSSID: wifiSSID,
+          isOfficeWifi: isOfficeWifi,
           validationStatus: LocationValidationStatus.invalid,
           validationMessage: 'Ngoài phạm vi - ${(distance).round()}m từ văn phòng',
           timestamp: DateTime.now(),
         ));
       }
     } catch (e) {
+      final wifiSSID = await LocationService.getCurrentWifiSSID();
+      final wifiBSSID = await LocationService.getCurrentWifiBSSID();
+      const officeWifiSSIDs = ['KienlongBank_Office_5G'];
+      const officeWifiBSSIDs = ['00:11:22:33:44:55'];
+      final isOfficeWifi = wifiSSID != null && officeWifiSSIDs.contains(wifiSSID)
+        && wifiBSSID != null && officeWifiBSSIDs.contains(wifiBSSID);
       _updateLocationData(_locationData.copyWith(
         validationStatus: LocationValidationStatus.invalid,
         validationMessage: 'Lỗi: ${e.toString()}',
+        wifiSSID: wifiSSID,
+        isOfficeWifi: isOfficeWifi,
       ));
     }
   }

@@ -8,6 +8,7 @@ import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:logger/logger.dart';
 import '../../features/notifications/data/models/notification_item.dart';
 import '../../features/notifications/data/repositories/local_notification_repository.dart';
 import 'background_message_handler.dart';
@@ -23,7 +24,7 @@ class FirebaseService {
   late FirebaseInAppMessaging _inAppMessaging;
   late FlutterLocalNotificationsPlugin _localNotifications;
   late LocalNotificationRepository _notificationRepository;
-  
+  final logger = Logger();
   // StreamController for real-time notification updates
   final StreamController<NotificationItem> _messageController = StreamController<NotificationItem>.broadcast();
   
@@ -82,7 +83,7 @@ class FirebaseService {
     );
     
     if (kDebugMode) {
-      print('Local notifications initialized');
+      logger.i('Local notifications initialized');
     }
   }
 
@@ -100,19 +101,19 @@ class FirebaseService {
     );
 
     if (kDebugMode) {
-      print('User granted permission: ${settings.authorizationStatus}');
+      logger.i('User granted permission: ${settings.authorizationStatus}');
     }
 
     // Lấy FCM token với error handling cho iOS
     try {
       String? token = await _messaging.getToken();
       if (kDebugMode) {
-        print('FCM Token: $token');
+        logger.i('FCM Token: $token');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting FCM token: $e');
-        print('This is normal on iOS simulator or when APNS is not properly configured');
+        logger.e('Error getting FCM token: $e');
+        logger.e('This is normal on iOS simulator or when APNS is not properly configured');
       }
       // Continue initialization even if token retrieval fails
     }
@@ -120,7 +121,7 @@ class FirebaseService {
     // Lắng nghe token refresh
     _messaging.onTokenRefresh.listen((String token) {
       if (kDebugMode) {
-        print('FCM Token refreshed: $token');
+        logger.i('FCM Token refreshed: $token');
       }
       // Notify app about token update
       onTokenRefresh?.call(token);
@@ -129,11 +130,11 @@ class FirebaseService {
     // Xử lý message khi app đang foreground
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (kDebugMode) {
-        print('Got a message whilst in the foreground!');
-        print('Message data: ${message.data}');
+        logger.i('Got a message whilst in the foreground!');
+        logger.i('Message data: ${message.data}');
 
         if (message.notification != null) {
-          print('Message also contained a notification: ${message.notification}');
+          logger.i('Message also contained a notification: ${message.notification}');
         }
       }
       
@@ -144,7 +145,7 @@ class FirebaseService {
     // Xử lý message khi user tap vào notification
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       if (kDebugMode) {
-        print('A new onMessageOpenedApp event was published!');
+        logger.i('A new onMessageOpenedApp event was published!');
       }
       
       // TODO: Navigate to specific screen based on message data
@@ -155,7 +156,7 @@ class FirebaseService {
     RemoteMessage? initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       if (kDebugMode) {
-        print('App opened from terminated state with message: ${initialMessage.messageId}');
+        logger.i('App opened from terminated state with message: ${initialMessage.messageId}');
       }
       _handleMessageOpenedApp(initialMessage);
     }
@@ -166,7 +167,7 @@ class FirebaseService {
     await _analytics.setAnalyticsCollectionEnabled(true);
     
     if (kDebugMode) {
-      print('Firebase Analytics initialized');
+      logger.i('Firebase Analytics initialized');
     }
   }
 
@@ -196,7 +197,7 @@ class FirebaseService {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error handling local notification tap: $e');
+        logger.e('Error handling local notification tap: $e');
       }
     }
   }
@@ -205,8 +206,8 @@ class FirebaseService {
   void _handleForegroundMessage(RemoteMessage message) async {
     try {
       if (kDebugMode) {
-        print('Received foreground message: ${message.messageId}');
-        print('Data: ${message.data}');
+        logger.i('Received foreground message: ${message.messageId}');
+        logger.i('Data: ${message.data}');
       }
       
       // Convert to NotificationItem
@@ -226,7 +227,7 @@ class FirebaseService {
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error handling foreground message: $e');
+        logger.e('Error handling foreground message: $e');
       }
     }
   }
@@ -235,7 +236,7 @@ class FirebaseService {
   void _handleMessageOpenedApp(RemoteMessage message) async {
     try {
       if (kDebugMode) {
-        print('Message opened app: ${message.messageId}');
+        logger.i('Message opened app: ${message.messageId}');
       }
       
       // Convert to NotificationItem
@@ -258,7 +259,7 @@ class FirebaseService {
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error handling message opened app: $e');
+        logger.e('Error handling message opened app: $e');
       }
     }
   }
@@ -380,7 +381,7 @@ class FirebaseService {
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error showing local notification: $e');
+        logger.e('Error showing local notification: $e');
       }
     }
   }
@@ -391,7 +392,7 @@ class FirebaseService {
       return await _messaging.getToken();
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting FCM token: $e');
+        logger.e('Error getting FCM token: $e');
       }
       return null;
     }
@@ -401,7 +402,7 @@ class FirebaseService {
   Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
     if (kDebugMode) {
-      print('Subscribed to topic: $topic');
+      logger.i('Subscribed to topic: $topic');
     }
   }
 
@@ -409,7 +410,7 @@ class FirebaseService {
   Future<void> unsubscribeFromTopic(String topic) async {
     await _messaging.unsubscribeFromTopic(topic);
     if (kDebugMode) {
-      print('Unsubscribed from topic: $topic');
+      logger.i('Unsubscribed from topic: $topic');
     }
   }
 
@@ -461,7 +462,7 @@ class FirebaseService {
     await _crashlytics.setCrashlyticsCollectionEnabled(true);
     
     if (kDebugMode) {
-      print('Firebase Crashlytics initialized');
+      logger.i('Firebase Crashlytics initialized');
     }
   }
 
@@ -545,7 +546,7 @@ class FirebaseService {
     await _inAppMessaging.setMessagesSuppressed(false);
     
     if (kDebugMode) {
-      print('Firebase In-App Messaging initialized');
+      logger.i('Firebase In-App Messaging initialized');
     }
   }
 
@@ -555,7 +556,7 @@ class FirebaseService {
   Future<void> triggerEvent(String eventName, {Map<String, Object>? parameters}) async {
     await _analytics.logEvent(name: eventName, parameters: parameters);
     if (kDebugMode) {
-      print('Triggered in-app messaging event: $eventName');
+      logger.i('Triggered in-app messaging event: $eventName');
     }
   }
 
@@ -563,7 +564,7 @@ class FirebaseService {
   Future<void> suppressInAppMessages(bool suppress) async {
     await _inAppMessaging.setMessagesSuppressed(suppress);
     if (kDebugMode) {
-      print('In-app messages ${suppress ? 'suppressed' : 'enabled'}');
+      logger.i('In-app messages ${suppress ? 'suppressed' : 'enabled'}');
     }
   }
 
@@ -571,7 +572,7 @@ class FirebaseService {
   Future<void> setInAppMessagingDataCollection(bool enabled) async {
     await _inAppMessaging.setAutomaticDataCollectionEnabled(enabled);
     if (kDebugMode) {
-      print('In-app messaging data collection: ${enabled ? 'enabled' : 'disabled'}');
+      logger.i('In-app messaging data collection: ${enabled ? 'enabled' : 'disabled'}');
     }
   }
 

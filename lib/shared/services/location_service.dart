@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 /// Service xử lý location và permissions cho chức năng chấm công
 class LocationService {
@@ -135,6 +136,32 @@ class LocationService {
         return LocationPermissionStatus.always;
       default:
         return LocationPermissionStatus.denied;
+    }
+  }
+
+  /// Lấy thông tin WiFi hiện tại (SSID)
+  static Future<String?> getCurrentWifiSSID() async {
+    try {
+      final info = NetworkInfo();
+      final ssid = await info.getWifiName();
+      // Một số thiết bị có thể trả về SSID với dấu ngoặc kép, cần loại bỏ
+      if (ssid != null && ssid.startsWith('"') && ssid.endsWith('"')) {
+        return ssid.substring(1, ssid.length - 1);
+      }
+      return ssid;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Lấy thông tin BSSID hiện tại (MAC WiFi)
+  static Future<String?> getCurrentWifiBSSID() async {
+    try {
+      final info = NetworkInfo();
+      final bssid = await info.getWifiBSSID();
+      return bssid;
+    } catch (e) {
+      return null;
     }
   }
 }

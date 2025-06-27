@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../../../shared/database/database_helper.dart';
 import '../models/notification_item.dart';
@@ -23,7 +24,7 @@ class NotificationRepositoryException implements Exception {
 /// Repository cho local notification storage với SQLite
 class LocalNotificationRepository {
   static const String _tableName = 'notifications';
-  
+  final logger = Logger();
   /// Get database instance
   Future<Database> get _database async {
     return await DatabaseHelper.instance.database;
@@ -44,11 +45,11 @@ class LocalNotificationRepository {
       );
       
       if (kDebugMode) {
-        print('Inserted notification: ${notification.id}');
+        logger.i('Inserted notification: ${notification.id}');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error inserting notification: $e');
+        logger.e('Error inserting notification: $e');
       }
       throw NotificationRepositoryException(
         'Failed to insert notification',
@@ -84,11 +85,11 @@ class LocalNotificationRepository {
       await batch.commit(noResult: true);
       
       if (kDebugMode) {
-        print('Inserted ${notifications.length} notifications');
+        logger.i('Inserted ${notifications.length} notifications');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error inserting notifications: $e');
+        logger.e('Error inserting notifications: $e');
       }
       throw NotificationRepositoryException(
         'Failed to insert notifications',
@@ -113,7 +114,7 @@ class LocalNotificationRepository {
       return NotificationItemSQLiteHelper.fromSQLiteMap(results.first);
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting notification $id: $e');
+        logger.e('Error getting notification $id: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get notification',
@@ -140,7 +141,7 @@ class LocalNotificationRepository {
       return NotificationBatchHelper.fromSQLiteMaps(results);
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting notifications: $e');
+        logger.e('Error getting notifications: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get notifications',
@@ -182,11 +183,11 @@ class LocalNotificationRepository {
       }
       
       if (kDebugMode) {
-        print('Updated notification $notificationId status to ${status.name}');
+        logger.i('Updated notification $notificationId status to ${status.name}');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error updating notification status: $e');
+        logger.e('Error updating notification status: $e');
       }
       
       if (e is NotificationRepositoryException) {
@@ -211,13 +212,13 @@ class LocalNotificationRepository {
       );
       
       if (kDebugMode) {
-        print('Deleted notification: $notificationId');
+        logger.i('Deleted notification: $notificationId');
       }
       
       return rowsAffected > 0;
     } catch (e) {
       if (kDebugMode) {
-        print('Error deleting notification: $e');
+        logger.e('Error deleting notification: $e');
       }
       throw NotificationRepositoryException(
         'Failed to delete notification',
@@ -297,7 +298,7 @@ class LocalNotificationRepository {
       return NotificationBatchHelper.fromSQLiteMaps(results);
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting filtered notifications: $e');
+        logger.e('Error getting filtered notifications: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get filtered notifications',
@@ -350,7 +351,7 @@ class LocalNotificationRepository {
       return result.first['count'] as int;
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting unread count: $e');
+        logger.e('Error getting unread count: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get unread count',
@@ -370,7 +371,7 @@ class LocalNotificationRepository {
       return result.first['count'] as int;
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting total count: $e');
+        logger.e('Error getting total count: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get total count',
@@ -401,7 +402,7 @@ class LocalNotificationRepository {
         } catch (e) {
           // Skip unknown types
           if (kDebugMode) {
-            print('Unknown notification type: $typeString');
+            logger.e('Unknown notification type: $typeString');
           }
         }
       }
@@ -409,7 +410,7 @@ class LocalNotificationRepository {
       return counts;
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting counts by type: $e');
+        logger.e('Error getting counts by type: $e');
       }
       throw NotificationRepositoryException(
         'Failed to get counts by type',
@@ -435,13 +436,13 @@ class LocalNotificationRepository {
       );
       
       if (kDebugMode) {
-        print('Marked $rowsAffected notifications as read');
+        logger.i('Marked $rowsAffected notifications as read');
       }
       
       return rowsAffected;
     } catch (e) {
       if (kDebugMode) {
-        print('Error marking all as read: $e');
+        logger.e('Error marking all as read: $e');
       }
       throw NotificationRepositoryException(
         'Failed to mark all as read',
@@ -465,13 +466,13 @@ class LocalNotificationRepository {
       );
       
       if (kDebugMode) {
-        print('Cleaned up $rowsAffected old notifications');
+        logger.i('Cleaned up $rowsAffected old notifications');
       }
       
       return rowsAffected;
     } catch (e) {
       if (kDebugMode) {
-        print('Error cleaning up old notifications: $e');
+        logger.e('Error cleaning up old notifications: $e');
       }
       throw NotificationRepositoryException(
         'Failed to cleanup old notifications',
@@ -487,11 +488,11 @@ class LocalNotificationRepository {
       await db.delete(_tableName);
       
       if (kDebugMode) {
-        print('Deleted all notifications');
+        logger.i('Deleted all notifications');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error deleting all notifications: $e');
+        logger.e('Error deleting all notifications: $e');
       }
       throw NotificationRepositoryException(
         'Failed to delete all notifications',

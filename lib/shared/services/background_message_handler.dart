@@ -1,21 +1,22 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 import '../database/database_helper.dart';
 import '../../features/notifications/data/repositories/local_notification_repository.dart';
 import '../../features/notifications/data/models/notification_item.dart';
-import '../../features/notifications/data/models/notification_extensions.dart';
 import 'dart:convert';
 
 /// Top-level function để handle background FCM messages
 /// Required để chạy khi app ở background hoặc terminated state
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  final logger = Logger();
   try {
     if (kDebugMode) {
-      print('Handling background message: ${message.messageId}');
-      print('Title: ${message.notification?.title}');
-      print('Body: ${message.notification?.body}');
-      print('Data: ${message.data}');
+      logger.i('Handling background message: ${message.messageId}');
+      logger.i('Title: ${message.notification?.title}');
+      logger.i('Body: ${message.notification?.body}');
+      logger.i('Data: ${message.data}');
     }
     
     // Initialize database if needed
@@ -29,12 +30,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await repository.insertNotification(notificationItem);
     
     if (kDebugMode) {
-      print('Background message saved to database: ${notificationItem.id}');
+      logger.i('Background message saved to database: ${notificationItem.id}');
     }
     
   } catch (e) {
     if (kDebugMode) {
-      print('Error handling background message: $e');
+      logger.e('Error handling background message: $e');
     }
     // Log error but don't throw - background handlers should be robust
   }
@@ -123,14 +124,14 @@ String _generateNotificationId() {
 class BackgroundNotificationService {
   static const String _channelId = 'personaai_background';
   static const String _channelName = 'PersonaAI Background Notifications';
-  
+  static final logger = Logger();
   /// Initialize background notification service
   static Future<void> initialize() async {
     // Register the background message handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     
     if (kDebugMode) {
-      print('Background notification service initialized');
+      logger.i('Background notification service initialized');
     }
   }
   
@@ -154,14 +155,14 @@ class BackgroundNotificationService {
       }).toList();
       
       if (kDebugMode) {
-        print('Found ${missedNotifications.length} missed notifications');
+        logger.i('Found ${missedNotifications.length} missed notifications');
       }
       
       return missedNotifications;
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error processing missed notifications: $e');
+        logger.e('Error processing missed notifications: $e');
       }
       return [];
     }
@@ -178,12 +179,12 @@ class BackgroundNotificationService {
       );
       
       if (kDebugMode) {
-        print('Background cleanup: removed $deletedCount old notifications');
+        logger.i('Background cleanup: removed $deletedCount old notifications');
       }
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error in background cleanup: $e');
+        logger.e('Error in background cleanup: $e');
       }
     }
   }
@@ -199,12 +200,12 @@ class BackgroundNotificationService {
       // Android: Handle in notification channel
       
       if (kDebugMode) {
-        print('Updated badge count: $unreadCount');
+        logger.i('Updated badge count: $unreadCount');
       }
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error updating badge count: $e');
+        logger.e('Error updating badge count: $e');
       }
     }
   }
@@ -227,7 +228,7 @@ class BackgroundNotificationService {
       
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting notification stats: $e');
+        logger.e('Error getting notification stats: $e');
       }
       return {
         'error': e.toString(),
@@ -254,7 +255,7 @@ class BackgroundNotificationService {
         NotificationType.values.firstWhere((type) => type.name == typeString);
       } catch (e) {
         if (kDebugMode) {
-          print('Invalid notification type: $typeString');
+          logger.e('Invalid notification type: $typeString');
         }
         return false;
       }
@@ -267,7 +268,7 @@ class BackgroundNotificationService {
         NotificationPriority.values.firstWhere((priority) => priority.name == priorityString);
       } catch (e) {
         if (kDebugMode) {
-          print('Invalid notification priority: $priorityString');
+          logger.e('Invalid notification priority: $priorityString');
         }
         return false;
       }
@@ -282,7 +283,7 @@ class BackgroundNotificationService {
       return jsonDecode(jsonString) as Map<String, dynamic>;
     } catch (e) {
       if (kDebugMode) {
-        print('Error decoding JSON: $e');
+        logger.e('Error decoding JSON: $e');
       }
       return null;
     }

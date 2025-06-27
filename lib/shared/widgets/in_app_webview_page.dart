@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:logger/logger.dart';
 import '../../themes/colors.dart';
 import '../services/webview_helper.dart';
 
@@ -28,7 +29,7 @@ class _InAppWebViewPageState extends State<InAppWebViewPage> {
   bool _canGoBack = false;
   bool _canGoForward = false;
   String _currentUrl = '';
-
+  final logger = Logger();
   @override
   void initState() {
     super.initState();
@@ -349,7 +350,7 @@ class _InAppWebViewPageState extends State<InAppWebViewPage> {
                 },
                 onConsoleMessage: (controller, consoleMessage) {
                   // Log console messages for debugging
-                  debugPrint('WebView Console: ${consoleMessage.message}');
+                  logger.i('WebView Console: ${consoleMessage.message}');
                 },
                 onLoadError: (controller, url, code, message) {
                   // Handle load errors

@@ -98,6 +98,9 @@ dependencies:
   # In-app webview
   flutter_inappwebview: ^6.1.5
 
+  # Logger
+  logger: ^2.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

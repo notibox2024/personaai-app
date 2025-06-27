@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 
 /// Service quản lý tất cả các API calls sử dụng Dio
 class ApiService {
@@ -9,7 +10,7 @@ class ApiService {
 
   late final Dio _dio;
   final CancelToken _cancelToken = CancelToken();
-
+  final logger = Logger();
   /// Khởi tạo Dio với cấu hình cơ bản
   void initialize({
     String baseUrl = 'https://api.personaai.com', // Thay đổi theo API thực tế
@@ -46,28 +47,28 @@ class ApiService {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           if (kDebugMode) {
-            print('🚀 REQUEST: ${options.method} ${options.uri}');
-            print('📝 Headers: ${options.headers}');
+            logger.i('🚀 REQUEST: ${options.method} ${options.uri}');
+            logger.i('📝 Headers: ${options.headers}');
             if (options.data != null) {
-              print('📦 Data: ${options.data}');
+              logger.i('📦 Data: ${options.data}');
             }
           }
           return handler.next(options);
         },
         onResponse: (response, handler) {
           if (kDebugMode) {
-            print('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.uri}');
-            print('📄 Data: ${response.data}');
+            logger.i('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.uri}');
+            logger.i('📄 Data: ${response.data}');
           }
           return handler.next(response);
         },
         onError: (error, handler) {
           if (kDebugMode) {
-            print('❌ ERROR: ${error.message}');
-            print('🔍 Type: ${error.type}');
+            logger.e('❌ ERROR: ${error.message}');
+            logger.e('🔍 Type: ${error.type}');
             if (error.response != null) {
-              print('📊 Status: ${error.response?.statusCode}');
-              print('📄 Data: ${error.response?.data}');
+              logger.e('📊 Status: ${error.response?.statusCode}');
+              logger.e('📄 Data: ${error.response?.data}');
             }
           }
           return handler.next(error);
@@ -84,7 +85,7 @@ class ApiService {
           requestHeader: true,
           responseHeader: false,
           error: true,
-          logPrint: (obj) => debugPrint(obj.toString()),
+          logPrint: (obj) => logger.i(obj.toString()),
         ),
       );
     }
