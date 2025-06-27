@@ -92,6 +92,12 @@ dependencies:
   flutter_bloc: ^9.1.1
   equatable: ^2.0.7
 
+  # Supabase
+  supabase_flutter: ^2.9.1
+
+  # In-app webview
+  flutter_inappwebview: ^6.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -11,6 +11,7 @@ import '../../data/models/notification_filter.dart';
 import '../../data/repositories/local_notification_repository.dart';
 import '../bloc/notification_bloc.dart';
 import '../../../../shared/services/firebase_service.dart';
+import '../../../../shared/shared_exports.dart';
 
 /// Enhanced notification page với BLoC state management
 class NotificationPage extends StatelessWidget {
@@ -416,20 +417,25 @@ class _NotificationViewState extends State<NotificationView> {
   }
 
   void _handleNotificationTap(BuildContext context, NotificationItem notification) {
-    // Mark as read if unread
-    if (notification.status == NotificationStatus.unread) {
-      context.read<NotificationBloc>().add(
-        NotificationMarkAsRead(notification.id),
+    // If notification is actionable and has action URL, trigger the action
+    if (notification.isActionable && notification.actionUrl != null) {
+      _handleNotificationAction(context, notification);
+    } else {
+      // Mark as read if unread
+      if (notification.status == NotificationStatus.unread) {
+        context.read<NotificationBloc>().add(
+          NotificationMarkAsRead(notification.id),
+        );
+      }
+
+      // Show notification detail or simple message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã mở thông báo: ${notification.title}'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
-
-    // TODO: Navigate to detail page or perform action
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã mở thông báo: ${notification.title}'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   void _toggleReadStatus(BuildContext context, NotificationItem notification) {
@@ -471,11 +477,140 @@ class _NotificationViewState extends State<NotificationView> {
   }
 
   void _handleNotificationAction(BuildContext context, NotificationItem notification) {
-    // TODO: Handle specific notification actions based on action_url
+    // Mark as read if unread
+    if (notification.status == NotificationStatus.unread) {
+      context.read<NotificationBloc>().add(
+        NotificationMarkAsRead(notification.id),
+      );
+    }
+
+    // Handle action based on action URL
+    if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
+      final actionUrl = notification.actionUrl!;
+      
+      // Check if it's a web URL using WebViewHelper
+      if (WebViewHelper.isValidUrl(actionUrl)) {
+        // Open in webview
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InAppWebViewPage(
+              url: actionUrl,
+              title: notification.title,
+            ),
+          ),
+        );
+      } else if (WebViewHelper.isInternalNavigation(actionUrl)) {
+        // Handle internal app navigation
+        _handleInternalNavigation(context, actionUrl, notification);
+      } else {
+        // Try to normalize URL and open in webview
+        final normalizedUrl = WebViewHelper.normalizeUrl(actionUrl);
+        if (WebViewHelper.isValidUrl(normalizedUrl)) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InAppWebViewPage(
+                url: normalizedUrl,
+                title: notification.title,
+              ),
+            ),
+          );
+        } else {
+          _showActionNotImplemented(context, actionUrl);
+        }
+      }
+    } else {
+      // No action URL, just show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã mở thông báo: ${notification.title}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _handleInternalNavigation(BuildContext context, String actionUrl, NotificationItem notification) {
+    // Parse internal action URL and navigate accordingly
+    try {
+      final uri = Uri.parse(actionUrl);
+      final pathSegments = uri.pathSegments;
+      
+      if (pathSegments.length >= 2) {
+        final module = pathSegments[0];
+        final action = pathSegments[1];
+        
+        switch (module) {
+          case 'attendance':
+            _navigateToAttendance(context, action);
+            break;
+          case 'training':
+            _navigateToTraining(context, action);
+            break;
+          case 'leave':
+            _navigateToLeave(context, action);
+            break;
+          case 'overtime':
+            _navigateToOvertime(context, action);
+            break;
+          default:
+            _showActionNotImplemented(context, actionUrl);
+        }
+      } else {
+        _showActionNotImplemented(context, actionUrl);
+      }
+    } catch (e) {
+      _showActionNotImplemented(context, actionUrl);
+    }
+  }
+
+  void _navigateToAttendance(BuildContext context, String action) {
+    // TODO: Navigate to attendance pages based on action
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Xử lý hành động cho: ${notification.title}'),
+        content: Text('Chuyển đến chấm công: $action'),
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _navigateToTraining(BuildContext context, String action) {
+    // TODO: Navigate to training pages based on action
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Chuyển đến đào tạo: $action'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _navigateToLeave(BuildContext context, String action) {
+    // TODO: Navigate to leave pages based on action
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Chuyển đến nghỉ phép: $action'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _navigateToOvertime(BuildContext context, String action) {
+    // TODO: Navigate to overtime pages based on action
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Chuyển đến tăng ca: $action'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showActionNotImplemented(BuildContext context, String actionUrl) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Chức năng chưa được triển khai: $actionUrl'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.orange,
       ),
     );
   }

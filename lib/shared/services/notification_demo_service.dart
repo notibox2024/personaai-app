@@ -53,6 +53,33 @@ class NotificationDemoService {
         createdAt: now.subtract(const Duration(hours: 1)),
         senderName: 'IT Support',
         isActionable: true,
+        actionUrl: 'https://support.google.com',
+      ),
+      
+      NotificationItem(
+        id: 'demo_004',
+        title: 'Thông báo từ Kienlongbank',
+        message: 'Có thông tin mới từ ngân hàng, vui lòng xem chi tiết.',
+        type: NotificationType.system,
+        status: NotificationStatus.unread,
+        priority: NotificationPriority.normal,
+        createdAt: now.subtract(const Duration(hours: 3)),
+        senderName: 'Kienlongbank',
+        isActionable: true,
+        actionUrl: 'https://kienlongbank.com',
+      ),
+      
+      NotificationItem(
+        id: 'demo_005',
+        title: 'Cập nhật chính sách mới',
+        message: 'Chính sách bảo mật đã được cập nhật, tìm hiểu thêm.',
+        type: NotificationType.general,
+        status: NotificationStatus.read,
+        priority: NotificationPriority.low,
+        createdAt: now.subtract(const Duration(days: 1)),
+        senderName: 'Phòng Nhân sự',
+        isActionable: true,
+        actionUrl: 'https://flutter.dev',
       ),
     ];
     
