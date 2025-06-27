@@ -1,0 +1,5 @@
+rootProject.name = 'personaai-portal'
+
+include 'personnaai-common'
+include 'personnaai-core'
+include 'personnaai-api' 

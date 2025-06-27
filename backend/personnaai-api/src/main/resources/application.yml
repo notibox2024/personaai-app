@@ -1,0 +1,45 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /personaai-portal
+
+spring:
+  application:
+    name: personaai-portal-api
+  
+  profiles:
+    active: dev
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/personaai_portal
+    username: ${DB_USERNAME:personaai}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        
+  security:
+    user:
+      name: admin
+      password: admin
+      roles: ADMIN
+      
+  actuator:
+    endpoints:
+      web:
+        exposure:
+          include: health,info,metrics
+          
+logging:
+  level:
+    com.kienlongbank.personaai.portal: DEBUG
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %level - %msg%n" 

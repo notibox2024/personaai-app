@@ -1,3 +1,4 @@
+# ===== FLUTTER =====
 # Miscellaneous
 *.class
 *.log
@@ -5,11 +6,9 @@
 *.swp
 .DS_Store
 .atom/
-.build/
 .buildlog/
 .history
 .svn/
-.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -21,7 +20,7 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -43,3 +42,183 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ===== BACKEND (Spring Boot) =====
+
+# Gradle files
+backend/.gradle/
+backend/build/
+backend/**/build/
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# Java
+*.jar
+*.war
+*.nar
+*.ear
+*.class
+
+# IntelliJ IDEA
+backend/.idea/
+*.iws
+*.iml
+*.ipr
+backend/out/
+
+# VS Code
+backend/.vscode/
+
+# Eclipse
+backend/.apt_generated
+backend/.classpath
+backend/.factorypath
+backend/.project
+backend/.settings
+backend/.springBeans
+backend/.sts4-cache
+backend/bin/
+
+# Spring Boot
+backend/*.jar
+backend/*.war
+
+# Logs
+backend/logs/
+backend/*.log
+backend/log/
+
+# Database
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/*.h2.db
+backend/*.trace.db
+backend/*.lock.db
+
+# ===== GENERAL =====
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+*.bak
+*.swp
+
+# Node.js (nếu có)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Test results
+test-results/
+reports/
+
+# Local configuration
+local.properties
+local.yml
+local.json
+config/local/
+
+# Security files
+*.jks
+*.keystore
+*.p12
+keystore.p12
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Package files
+*.tgz
+*.tar.gz
+*.zip
+*.rar
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Backup files
+*.backup
+*.back
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Flutter specific paths
+**/ios/Flutter/flutter_assets/
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/app.so
+**/ios/Flutter/flutter_assets/
+
+# Personal notes and documentation
+TODO.md
+NOTES.md
+personal/
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.cert
+
+# Project specific
+debug.log
+error.log

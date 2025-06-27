@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    
+logging:
+  level:
+    com.kienlongbank.personaai.portal: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG 
