@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
@@ -51,6 +52,31 @@ class NotificationView extends StatefulWidget {
 class _NotificationViewState extends State<NotificationView> {
   bool _isSearchMode = false;
   String _searchQuery = '';
+  Timer? _searchDebounceTimer;
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleSearchChanged(String query) {
+    // Cancel previous timer if exists
+    _searchDebounceTimer?.cancel();
+    
+    // Update UI immediately for responsive feel
+    setState(() {
+      _searchQuery = query;
+      _isSearchMode = query.isNotEmpty;
+    });
+    
+    // Debounce the actual search operation
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      context.read<NotificationBloc>().add(
+        NotificationSearchChanged(query),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,15 +175,7 @@ class _NotificationViewState extends State<NotificationView> {
             const NotificationMarkAllAsRead(),
           );
         },
-        onSearchChanged: (query) {
-          setState(() {
-            _searchQuery = query;
-            _isSearchMode = query.isNotEmpty;
-          });
-          context.read<NotificationBloc>().add(
-            NotificationSearchChanged(query),
-          );
-        },
+        onSearchChanged: _handleSearchChanged,
         unreadCount: state is NotificationLoaded ? state.unreadCount : 0,
         totalCount: state is NotificationLoaded ? state.filteredNotifications.length : 0,
         isSearchMode: _isSearchMode,
