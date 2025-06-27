@@ -1,1 +1,14 @@
 Minh: FCM Token: csPQ77DvqkYho7MPly2fY0:APA91bFzBiQ-XCKOkPGk1dAXVS_Zs30Go7LbCtrW6kjhcVS6Rt-_cAda8NwxUqNaDgmAq6c8tUcJ7Mufsr0RkCA7DQOUtLLwW4t1HpQc_R25GGXUlohkxBM
+
+
+
+cLe7q1kisUk4m2O0_u4e7R
+cLe7q1kisUk4m2O0_u4e7R
+cLe7q1kisUk4m2O0_u4e7R
+
+
+f-bpDjegLkeikNavXV1WqG
+f-bpDjegLkeikNavXV1WqG
+
+11.13.0 - [FirebaseInAppMessaging][I-IAM190009] Successfully in fetching both FID as f-bpDjegLkeikNavXV1WqG and FIS token as eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjE6MzE0Mzk5NjUyMzkyOmlvczoxNDU1NTJmZDFiMDY2ZGFkMGNkMzFkIiwiZXhwIjoxNzUxNTMxNTQzLCJmaWQiOiJmLWJwRGplZ0xrZWlrTmF2WFYxV3FHIiwicHJvamVjdE51bWJlciI6MzE0Mzk5NjUyMzkyfQ.AB2LPV8wRAIgKelwecUkrKDmM_MJAz_FEpHdY8S82XmLA-PUdRsN3vwCIFoFKtUn-z2fBn6wgKPvkvgcGw1ytooHJdxOPo2TcG_6
+11.13.0 - [FirebaseInAppMessaging][I-IAM180017] Starting InAppMessaging runtime with Firebase Installation ID f-bpDjegLkeikNavXV1WqG

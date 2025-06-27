@@ -37,6 +37,7 @@
 		<string>Ứng dụng cần quyền truy cập vị trí để xác định vị trí chấm công và đảm bảo nhân viên đang ở đúng địa điểm làm việc.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>remote-notification</string>
@@ -64,5 +65,20 @@
 		<true/>
 		<key>FirebaseAutomaticScreenReportingEnabled</key>
 		<true/>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<false/>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>app-analytics-services.com</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSExceptionMinimumTLSVersion</key>
+					<string>TLSv1.0</string>
+				</dict>
+			</dict>
+		</dict>
 	</dict>
 </plist>

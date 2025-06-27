@@ -107,9 +107,8 @@ class FirebaseService {
     // Lấy FCM token với error handling cho iOS
     try {
       String? token = await _messaging.getToken();
-      if (kDebugMode) {
-        logger.i('FCM Token: $token');
-      }
+      print('FCM Token: $token');
+
     } catch (e) {
       if (kDebugMode) {
         logger.e('Error getting FCM token: $e');
