@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 // Widgets
 import '../widgets/training_header.dart';
 import '../widgets/course_card.dart';
-import '../widgets/quick_actions_grid.dart';
 import '../widgets/current_learning_section.dart';
 
 // Models
@@ -68,15 +67,6 @@ class _TrainingPageState extends State<TrainingPage> {
               child: SafeArea(
                 top: false, // Header already handles top safe area
                 child: const SizedBox(height: 16),
-              ),
-            ),
-
-            // Quick Actions
-            SliverToBoxAdapter(
-              child: QuickActionsGrid(
-                onContinueLearning: _handleContinueLearning,
-                onExplore: _handleExplore,
-                onCertificates: _handleCertificates,
               ),
             ),
 
