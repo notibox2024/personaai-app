@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 
 // Widgets
 import '../widgets/training_header.dart';
+import '../widgets/course_card.dart';
+import '../widgets/quick_actions_grid.dart';
+import '../widgets/current_learning_section.dart';
 
 // Models
 import '../../data/models/course.dart';
 import '../../data/models/training_progress.dart';
-
-// Shared widgets
-import '../../../../shared/widgets/custom_card.dart';
-import '../../../../shared/widgets/status_chip.dart';
 
 /// Trang đào tạo chính của ứng dụng
 class TrainingPage extends StatefulWidget {
@@ -75,7 +73,11 @@ class _TrainingPageState extends State<TrainingPage> {
 
             // Quick Actions
             SliverToBoxAdapter(
-              child: _buildQuickActions(),
+              child: QuickActionsGrid(
+                onContinueLearning: _handleContinueLearning,
+                onExplore: _handleExplore,
+                onCertificates: _handleCertificates,
+              ),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
@@ -96,7 +98,10 @@ class _TrainingPageState extends State<TrainingPage> {
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             SliverToBoxAdapter(
-              child: _buildCurrentLearningSection(),
+              child: CurrentLearningSection(
+                progressList: _getMockProgressList(),
+                onContinueCourse: _handleContinueCourse,
+              ),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
@@ -141,350 +146,26 @@ class _TrainingPageState extends State<TrainingPage> {
 
 
 
-    Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildQuickActionButton(
-              icon: TablerIcons.player_play,
-              label: 'Tiếp tục học',
-              onTap: _handleContinueLearning,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildQuickActionButton(
-              icon: TablerIcons.search,
-              label: 'Khám phá',
-              onTap: _handleExplore,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildQuickActionButton(
-              icon: TablerIcons.certificate,
-              label: 'Chứng chỉ',
-              onTap: _handleCertificates,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: theme.colorScheme.primary,
-              size: 24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCurrentLearningSection() {
-    final mockProgress = _getMockProgressList();
-    
-    if (mockProgress.isEmpty) {
-      return _buildEmptyState(
-        icon: TablerIcons.book_off,
-        title: 'Chưa có khóa học nào',
-        subtitle: 'Hãy đăng ký khóa học đầu tiên của bạn',
-      );
-    }
-
-    return SizedBox(
-      height: 180,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 0),
-        scrollDirection: Axis.horizontal,
-        itemCount: mockProgress.length,
-        itemBuilder: (context, index) {
-          final progress = mockProgress[index];
-          return Container(
-            width: 280,
-            margin: EdgeInsets.only(right: index < mockProgress.length - 1 ? 0 : 0),
-            child: _buildProgressCard(progress),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProgressCard(TrainingProgress progress) {
-    final theme = Theme.of(context);
-    
-    return CustomCard(
-      child: Padding(
-        padding: const EdgeInsets.all(0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Flutter Development',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                                 StatusChip(
-                   text: progress.status.displayName,
-                   color: _getStatusColor(progress.status),
-                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: progress.progressPercentage / 100,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${progress.completedLessons}/${progress.totalLessons} bài học • ${progress.progressPercentage.toInt()}%',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                Icon(
-                  TablerIcons.clock,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${progress.totalStudyTime.inHours}h ${progress.totalStudyTime.inMinutes.remainder(60)}m',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => _handleContinueCourse(progress),
-                  child: const Text('Tiếp tục'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildRecommendedCourses() {
     final mockCourses = _getMockCourseList();
     
-    return SizedBox(
-      height: 310,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 0),
-        scrollDirection: Axis.horizontal,
-        itemCount: mockCourses.length,
-        itemBuilder: (context, index) {
-          final course = mockCourses[index];
-                      return Container(
-              width: 300,
-              margin: EdgeInsets.only(right: index < mockCourses.length - 1 ? 0 : 0),
-              child: _buildCourseCard(course),
-            );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCourseCard(Course course) {
-    final theme = Theme.of(context);
-    
-    return CustomCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Thumbnail
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Center(
-              child: Icon(
-                course.category.icon,
-                size: 48,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  course.title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                                         StatusChip(
-                       text: course.level.displayName,
-                       color: course.level.color,
-                     ),
-                     const Spacer(),
-                     if (course.isFree)
-                       const StatusChip(
-                         text: 'Miễn phí',
-                         color: Colors.green,
-                       ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      TablerIcons.clock,
-                      size: 14,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${course.duration.inHours}h',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      TablerIcons.users,
-                      size: 14,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${course.enrolledCount}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-                                 const SizedBox(height: 12),
-                 SizedBox(
-                   width: double.infinity,
-                   child: OutlinedButton(
-                     onPressed: () => _handleEnrollCourse(course),
-                     style: OutlinedButton.styleFrom(
-                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                       minimumSize: const Size(0, 32),
-                       textStyle: theme.textTheme.bodySmall?.copyWith(
-                         fontWeight: FontWeight.w500,
-                       ),
-                     ),
-                     child: const Text('Đăng ký'),
-                   ),
-                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    final theme = Theme.of(context);
-    
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
-        children: [
-          Icon(
-            icon,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
+        children: mockCourses.map((course) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: CourseCard(
+              course: course,
+              onTap: () => _handleViewCourseDetail(course),
+              onEnroll: () => _handleEnrollCourse(course),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
-  }
-
-  Color _getStatusColor(TrainingStatus status) {
-    switch (status) {
-      case TrainingStatus.notStarted:
-        return Colors.grey;
-      case TrainingStatus.inProgress:
-        return Colors.blue;
-      case TrainingStatus.completed:
-        return Colors.green;
-      case TrainingStatus.suspended:
-        return Colors.orange;
-    }
   }
 
   // =============== EVENT HANDLERS ===============
@@ -526,6 +207,12 @@ class _TrainingPageState extends State<TrainingPage> {
   void _handleEnrollCourse(Course course) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Đăng ký khóa học: ${course.title}')),
+    );
+  }
+
+  void _handleViewCourseDetail(Course course) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Xem chi tiết khóa học: ${course.title}')),
     );
   }
 
@@ -576,7 +263,7 @@ class _TrainingPageState extends State<TrainingPage> {
         title: 'React Fundamentals',
         description: 'Học React từ cơ bản đến nâng cao',
         instructor: 'Nguyễn Văn A',
-        thumbnailUrl: '',
+        thumbnailUrl: 'https://picsum.photos/400/200?random=1',
         duration: const Duration(hours: 20),
         totalLessons: 25,
         level: CourseLevel.beginner,
@@ -605,6 +292,58 @@ class _TrainingPageState extends State<TrainingPage> {
         tags: ['Leadership', 'Management', 'Soft Skills'],
         createdAt: DateTime.now().subtract(const Duration(days: 15)),
       ),
+      Course(
+        id: 'python-basics',
+        title: 'Python Programming',
+        description: 'Lập trình Python từ cơ bản đến thành thạo',
+        instructor: 'Lê Văn C',
+        thumbnailUrl: 'https://picsum.photos/400/200?random=3',
+        duration: const Duration(hours: 25),
+        totalLessons: 30,
+        level: CourseLevel.beginner,
+        category: CourseCategory.technical,
+        rating: 4.7,
+        enrolledCount: 2100,
+        price: 0,
+        isFree: true,
+        tags: ['Python', 'Programming', 'Backend'],
+        createdAt: DateTime.now().subtract(const Duration(days: 20)),
+      ),
+      Course(
+        id: 'communication-skills',
+        title: 'Effective Communication',
+        description: 'Nâng cao kỹ năng giao tiếp trong công việc',
+        instructor: 'Phạm Thị D',
+        thumbnailUrl: '',
+        duration: const Duration(hours: 12),
+        totalLessons: 15,
+        level: CourseLevel.intermediate,
+        category: CourseCategory.softSkills,
+        rating: 4.5,
+        enrolledCount: 750,
+        price: 199000,
+        isFree: false,
+        tags: ['Communication', 'Soft Skills', 'Teamwork'],
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
+      ),
+      Course(
+        id: 'data-analytics',
+        title: 'Data Analytics with Excel',
+        description: 'Phân tích dữ liệu hiệu quả với Excel',
+        instructor: 'Hoàng Văn E',
+        thumbnailUrl: '',
+        duration: const Duration(hours: 18),
+        totalLessons: 22,
+        level: CourseLevel.intermediate,
+        category: CourseCategory.technical,
+        rating: 4.4,
+        enrolledCount: 680,
+        price: 0,
+        isFree: true,
+        tags: ['Excel', 'Data Analysis', 'Business'],
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+      ),
     ];
   }
-} 
+}
+
