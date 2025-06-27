@@ -132,13 +132,13 @@ class _LoginPageState extends State<LoginPage>
                         
                         // Form card với advanced glass morphism effect
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                             child: Container(
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.15 : 0.1),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.3 : 0.2),
                                   width: 1.5,

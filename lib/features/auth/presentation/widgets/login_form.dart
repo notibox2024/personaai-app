@@ -316,30 +316,40 @@ class _LoginFormState extends State<LoginForm> {
           // Remember me & Forgot password với glass styling
           Row(
             children: [
-              // Remember me checkbox - đơn giản hóa
+              // Remember me checkbox - kiểu iOS
               Expanded(
                 child: Row(
                   children: [
-                    Checkbox(
-                      value: _rememberMe,
-                      onChanged: _isLoading ? null : (value) {
+                    GestureDetector(
+                      onTap: _isLoading ? null : () {
                         setState(() {
-                          _rememberMe = value ?? false;
+                          _rememberMe = !_rememberMe;
                         });
                       },
-                      activeColor: Colors.white.withValues(alpha: 0.9),
-                      checkColor: theme.brightness == Brightness.light 
-                          ? KienlongBankColors.primary 
-                          : Colors.black,
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.8 : 0.7),
-                        width: 2,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _rememberMe 
+                              ? Colors.white.withValues(alpha: 0.9)
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.8 : 0.7),
+                            width: 2,
+                          ),
+                        ),
+                        child: _rememberMe
+                            ? Icon(
+                                TablerIcons.check,
+                                size: 16,
+                                color: theme.brightness == Brightness.light 
+                                    ? KienlongBankColors.primary 
+                                    : Colors.black,
+                              )
+                            : null,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -452,6 +462,7 @@ class _LoginFormState extends State<LoginForm> {
                     ),
                     const SizedBox(height: 12),
                     Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.2),
