@@ -411,11 +411,11 @@ class _LoginFormState extends State<LoginForm> {
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.1 : 0.08),
+                  color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0 : 0),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.25 : 0.2),
-                    width: 1,
+                    width: 0.5,
                   ),
                 ),
                 child: Column(
