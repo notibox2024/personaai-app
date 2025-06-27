@@ -10,6 +10,23 @@ class LoginFooter extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
+    // Màu tương phản với background cam
+    final primaryTextColor = theme.brightness == Brightness.light 
+        ? Colors.white.withValues(alpha: 0.9)
+        : Colors.white.withValues(alpha: 0.85);
+    
+    final secondaryTextColor = theme.brightness == Brightness.light 
+        ? Colors.white.withValues(alpha: 0.8)
+        : Colors.white.withValues(alpha: 0.75);
+    
+    final dividerColor = theme.brightness == Brightness.light 
+        ? Colors.white.withValues(alpha: 0.3)
+        : Colors.white.withValues(alpha: 0.25);
+    
+    final buttonTextColor = theme.brightness == Brightness.light 
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.95);
+    
     return Column(
       children: [
         // Divider với text
@@ -17,7 +34,7 @@ class LoginFooter extends StatelessWidget {
           children: [
             Expanded(
               child: Divider(
-                color: colorScheme.outline,
+                color: dividerColor,
                 thickness: 1,
               ),
             ),
@@ -26,13 +43,20 @@ class LoginFooter extends StatelessWidget {
               child: Text(
                 'hoặc',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                  color: primaryTextColor,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      offset: const Offset(0, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
                 ),
               ),
             ),
             Expanded(
               child: Divider(
-                color: colorScheme.outline,
+                color: dividerColor,
                 thickness: 1,
               ),
             ),
@@ -48,16 +72,36 @@ class LoginFooter extends StatelessWidget {
             Text(
               'Chưa có tài khoản? ',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                color: primaryTextColor,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
               ),
             ),
             TextButton(
               onPressed: () => _handleRegister(context),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               child: Text(
                 'Đăng ký ngay',
                 style: TextStyle(
-                  color: colorScheme.primary,
+                  color: buttonTextColor,
                   fontWeight: FontWeight.w600,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      offset: const Offset(0, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -69,10 +113,35 @@ class LoginFooter extends StatelessWidget {
         // Hỗ trợ
         TextButton.icon(
           onPressed: () => _handleSupport(context),
-          icon: const Icon(TablerIcons.headset),
-          label: const Text('Hỗ trợ kỹ thuật'),
+          icon: Icon(
+            TablerIcons.headset,
+            color: primaryTextColor,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                offset: const Offset(0, 1),
+                blurRadius: 2,
+              ),
+            ],
+          ),
+          label: Text(
+            'Hỗ trợ kỹ thuật',
+            style: TextStyle(
+              color: primaryTextColor,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  offset: const Offset(0, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+          ),
           style: TextButton.styleFrom(
-            foregroundColor: colorScheme.onSurfaceVariant,
+            backgroundColor: Colors.white.withValues(alpha: 0.1),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
         
@@ -82,7 +151,7 @@ class LoginFooter extends StatelessWidget {
         Text(
           'Phiên bản 1.0.0',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            color: secondaryTextColor,
           ),
         ),
         
@@ -92,7 +161,7 @@ class LoginFooter extends StatelessWidget {
         Text(
           '© 2024 KienLongBank. Tất cả quyền được bảo lưu.',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            color: secondaryTextColor.withValues(alpha: 0.8),
           ),
           textAlign: TextAlign.center,
         ),
