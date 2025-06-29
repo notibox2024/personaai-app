@@ -17,14 +17,6 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Name: klb_dev_core_hr; Type: SCHEMA; Schema: -; Owner: postgres
---
-
-CREATE SCHEMA klb_dev_core_hr;
-
-
-ALTER SCHEMA klb_dev_core_hr OWNER TO postgres;
 
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: postgres

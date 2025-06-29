@@ -1,0 +1,26 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Scripts (not needed in build context)
+scripts/
+
+# Docker files
+docker-compose.yml
+docker-compose.*.yml
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+environment.example
+
+# Data directories
+data/
+volumes/ 
