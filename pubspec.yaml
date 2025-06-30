@@ -101,6 +101,12 @@ dependencies:
   # Logger
   logger: ^2.6.0
 
+  # Markdown widget
+  markdown_widget: ^2.3.2+8
+
+  # PDF
+  pdf: ^3.11.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -110,13 +116,13 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
   
   # SQLite testing
-  sqflite_common_ffi: ^2.3.0
+  sqflite_common_ffi: ^2.3.6
   
   # App icon generator
-  flutter_launcher_icons: ^0.14.2
+  flutter_launcher_icons: ^0.14.4
   
   # Native splash screen generator
   flutter_native_splash: ^2.4.6
