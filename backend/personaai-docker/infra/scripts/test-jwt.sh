@@ -8,11 +8,11 @@ set -e
 REALM_NAME=${1:-personaai}
 USERNAME=${2:-testuser}
 PASSWORD=${3:-password123}
-CLIENT_SECRET=${4}
+CLIENT_SECRET=${4:-ZMBwETYzVPSzpkdIc4Vqg65i34M3WaJd}
 CLIENT_ID="postgrest"
 
 KEYCLOAK_URL="http://localhost:8080"
-POSTGREST_URL="http://localhost:3000"
+POSTGREST_URL="http://localhost:3300"
 
 echo "🧪 Testing JWT Authentication"
 echo "Realm: $REALM_NAME"

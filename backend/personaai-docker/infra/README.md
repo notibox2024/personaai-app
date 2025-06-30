@@ -154,7 +154,7 @@ curl -X POST http://localhost:8080/realms/personaai/protocol/openid-connect/toke
 
 ```bash
 curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  http://localhost:3000/api/verify_jwt
+  http://localhost:3300/api/verify_jwt
 ```
 
 ## Cấu hình Database Schema
@@ -189,10 +189,10 @@ GRANT USAGE, SELECT ON SEQUENCE api.users_id_seq TO authenticated;
 ```bash
 # Get all users (requires auth)
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  http://localhost:3000/users
+  http://localhost:3300/users
 
 # Create new user (requires auth)
-curl -X POST http://localhost:3000/users \
+curl -X POST http://localhost:3300/users \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"email": "new@example.com", "name": "New User"}'
@@ -300,7 +300,7 @@ docker-compose exec postgres pg_isready -U postgres
 curl http://localhost:9000/health/ready
 
 # PostgREST
-curl http://localhost:3000/
+curl http://localhost:3300/
 
 # Automated health check
 ./scripts/health-check.sh

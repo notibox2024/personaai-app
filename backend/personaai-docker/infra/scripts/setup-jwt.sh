@@ -71,7 +71,7 @@ docker compose restart postgrest
 # Wait for PostgREST to be ready
 echo "⏳ Waiting for PostgREST to be ready..."
 timeout=30
-while ! curl -s "http://localhost:3000/" > /dev/null; do
+while ! curl -s "http://localhost:3300/" > /dev/null; do
     timeout=$((timeout - 1))
     if [ $timeout -eq 0 ]; then
         echo "⚠️  PostgREST may not be ready, but continuing..."
@@ -97,7 +97,7 @@ echo "
 📋 Configuration Summary:
 - Realm: $REALM_NAME
 - Keycloak URL: $KEYCLOAK_URL
-- PostgREST URL: http://localhost:3000
+- PostgREST URL: http://localhost:3300
 - JWKS File: $JWKS_FILE
 - Keys Found: $KEY_COUNT
 
@@ -121,7 +121,7 @@ echo "
 
    # Use token with PostgREST
    curl -H \"Authorization: Bearer YOUR_TOKEN\" \\
-     http://localhost:3000/users
+     http://localhost:3300/users
 
 🔄 Key Rotation:
 To rotate keys, simply run this script again:

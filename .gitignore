@@ -222,3 +222,4 @@ personal/
 # Project specific
 debug.log
 error.log
+backend/personaai-docker/infra/jwks.json

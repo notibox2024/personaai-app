@@ -42,7 +42,7 @@ else
 fi
 
 echo "📡 PostgREST:"
-if curl -s -f http://localhost:3000/ > /dev/null 2>&1; then
+if curl -s -f http://localhost:3300/ > /dev/null 2>&1; then
     echo "  ✅ PostgREST is ready"
 else
     echo "  ❌ PostgREST is not ready"
@@ -94,7 +94,7 @@ echo ""
 echo "🌐 Service URLs:"
 echo "  - Keycloak Admin: http://localhost:8080"
 echo "  - Keycloak Health: http://localhost:9000/health/ready"
-echo "  - PostgREST API: http://localhost:3000"
+echo "  - PostgREST API: http://localhost:3300"
 echo "  - PostgreSQL: localhost:5432"
 echo "  - Redis: localhost:6379"
 echo "  - JWKS Endpoint: http://localhost:8080/realms/$REALM_NAME/protocol/openid-connect/certs"

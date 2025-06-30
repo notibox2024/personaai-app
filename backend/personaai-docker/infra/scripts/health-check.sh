@@ -6,7 +6,7 @@
 set -e
 
 KEYCLOAK_URL="http://localhost:9000"
-POSTGREST_URL="http://localhost:3000"
+POSTGREST_URL="http://localhost:3300"
 REDIS_URL="localhost:6379"
 
 echo "🏥 PersonaAI Docker Services Health Check"

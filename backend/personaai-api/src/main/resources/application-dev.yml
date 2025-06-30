@@ -17,6 +17,6 @@ spring:
     
 logging:
   level:
-    com.kienlongbank.personaai.portal: DEBUG
+    com.kienlongbank.personaai.portal.api: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web: DEBUG 

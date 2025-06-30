@@ -76,7 +76,7 @@ measure_service_startup "Keycloak" \
 
 # PostgREST (depends on PostgreSQL and Keycloak)
 measure_service_startup "PostgREST" \
-    "curl -s -f http://localhost:3000/" \
+    "curl -s -f http://localhost:3300/" \
     60
 
 # Calculate overall time

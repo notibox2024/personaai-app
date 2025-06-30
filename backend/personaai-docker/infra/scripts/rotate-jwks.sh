@@ -96,7 +96,7 @@ docker compose restart postgrest
 # Wait for PostgREST to be ready
 echo "⏳ Waiting for PostgREST to be ready..."
 timeout=30
-while ! curl -s "http://localhost:3000/" > /dev/null; do
+while ! curl -s "http://localhost:3300/" > /dev/null; do
     timeout=$((timeout - 1))
     if [ $timeout -eq 0 ]; then
         echo "⚠️  PostgREST may not be ready, but continuing..."

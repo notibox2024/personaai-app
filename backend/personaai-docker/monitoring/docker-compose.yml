@@ -1,0 +1,146 @@
+name: personaai-monitoring
+
+version: '3.8'
+
+services:
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: personaai-otel-collector
+    restart: unless-stopped
+    ports:
+      - "4317:4317"   # gRPC OTLP receiver
+      - "4318:4318"   # HTTP OTLP receiver  
+      - "8889:8889"   # Prometheus metrics endpoint
+    volumes:
+      - ./config/otel-collector-config.yaml:/etc/otelcol-contrib/otel-collector-config.yaml
+    command: ["--config=/etc/otelcol-contrib/otel-collector-config.yaml"]
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - monitoring
+
+  # Prometheus - Metrics Storage
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: personaai-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring
+
+  # Grafana Loki - Logs Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: personaai-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+
+  # Grafana Tempo - Distributed Tracing
+  tempo:
+    image: grafana/tempo:latest
+    container_name: personaai-tempo
+    restart: unless-stopped
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "4000:4000"   # Tempo Distributor gRPC
+    volumes:
+      - ./config/tempo-config.yaml:/etc/tempo.yaml
+      - tempo-data:/tmp/tempo
+    command: 
+      - "--config.file=/etc/tempo.yaml"
+    user: "0:0"  # Run as root to fix permission issue
+    networks:
+      - monitoring
+
+  # Grafana - Visualization & Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: personaai-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=personaai123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SMTP_ENABLED=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - monitoring
+
+  # Promtail - Log Collector for Loki (DISABLED - gây high CPU load)
+  # Uncomment nếu cần infrastructure logs
+  # promtail:
+  #   image: grafana/promtail:latest
+  #   container_name: personaai-promtail
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./config/promtail-config.yaml:/etc/promtail/config.yml
+  #     - /var/log:/var/log:ro
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #   command: -config.file=/etc/promtail/config.yml
+  #   depends_on:
+  #     - loki
+  #   networks:
+  #     - monitoring
+
+  # Alertmanager - Alert Management (DISABLED - có thể enable cho production)
+  # Uncomment below để enable alerting (cần sửa config trước)
+  # alertmanager:
+  #   image: prom/alertmanager:latest
+  #   container_name: personaai-alertmanager
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9093:9093"
+  #   volumes:
+  #     - ./config/alertmanager-production.yml:/etc/alertmanager/alertmanager.yml
+  #     - alertmanager-data:/alertmanager
+  #   command:
+  #     - '--config.file=/etc/alertmanager/alertmanager.yml'
+  #     - '--storage.path=/alertmanager'
+  #     - '--web.external-url=http://localhost:9093'
+  #   networks:
+  #     - monitoring
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  # alertmanager-data:  # Uncomment khi enable alertmanager
+
+networks:
+  monitoring:
+    driver: bridge 
