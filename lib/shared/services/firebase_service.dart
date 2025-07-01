@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -22,6 +23,7 @@ class FirebaseService {
   late FirebaseAnalytics _analytics;
   late FirebaseCrashlytics _crashlytics;
   late FirebaseInAppMessaging _inAppMessaging;
+  late FirebaseRemoteConfig _remoteConfig;
   late FlutterLocalNotificationsPlugin _localNotifications;
   late LocalNotificationRepository _notificationRepository;
   final logger = Logger();
@@ -46,6 +48,7 @@ class FirebaseService {
     _analytics = FirebaseAnalytics.instance;
     _crashlytics = FirebaseCrashlytics.instance;
     _inAppMessaging = FirebaseInAppMessaging.instance;
+    _remoteConfig = FirebaseRemoteConfig.instance;
     _notificationRepository = LocalNotificationRepository();
     
     await _initializeLocalNotifications();
@@ -53,6 +56,7 @@ class FirebaseService {
     await _initializeAnalytics();
     await _initializeCrashlytics();
     await _initializeInAppMessaging();
+    await _initializeRemoteConfig();
     
     // Initialize background message handling
     await BackgroundNotificationService.initialize();
@@ -549,6 +553,75 @@ class FirebaseService {
     }
   }
 
+  // Initialize Firebase Remote Config
+  Future<void> _initializeRemoteConfig() async {
+    try {
+      // Set config settings
+      await _remoteConfig.setConfigSettings(RemoteConfigSettings(
+        fetchTimeout: const Duration(minutes: 1),
+        minimumFetchInterval: kDebugMode 
+            ? const Duration(seconds: 5)  // Short interval for development
+            : const Duration(hours: 1),   // Production interval
+      ));
+
+      // Set default values
+      await _remoteConfig.setDefaults(_getDefaultConfigValues());
+
+      // Fetch and activate
+      await _remoteConfig.fetchAndActivate();
+
+      if (kDebugMode) {
+        logger.i('Firebase Remote Config initialized');
+        logger.i('Config values: ${_remoteConfig.getAll()}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error initializing Remote Config: $e');
+      }
+    }
+  }
+
+  /// Get default config values
+  Map<String, dynamic> _getDefaultConfigValues() {
+    return {
+      // App configuration
+      'app_version_required': '1.0.0',
+      'maintenance_mode': false,
+      'maintenance_message': 'Ứng dụng đang được bảo trì. Vui lòng thử lại sau.',
+      
+      // Feature flags
+      'enable_biometric_login': true,
+      'enable_offline_mode': false,
+      'enable_dark_theme': true,
+      'enable_push_notifications': true,
+      'enable_location_tracking': true,
+      
+      // UI configuration
+      'max_attendance_distance': 100, // meters
+      'auto_check_out_hours': 8,
+      'break_time_minutes': 60,
+      
+      // API configuration
+      'api_timeout_seconds': 30,
+      'max_retry_attempts': 3,
+      'cache_duration_hours': 24,
+      
+      // API endpoints
+      'backend_api_url': 'http:/192.168.2.62:8097',
+      'data_api_url': 'http://192.168.2.62:3300',
+      
+      // Notification settings
+      'notification_quiet_hours_start': 22,
+      'notification_quiet_hours_end': 6,
+      'max_daily_notifications': 10,
+      
+      // Training configuration
+      'training_session_duration': 30, // minutes
+      'enable_training_reminders': true,
+      'training_progress_sync_interval': 300, // seconds
+    };
+  }
+
   // ============== IN-APP MESSAGING METHODS ==============
 
   // Trigger in-app message programmatically
@@ -607,6 +680,233 @@ class FirebaseService {
 
   Future<void> onActionCompleted(String action) async {
     await triggerEvent('action_completed', parameters: {'action': action});
+  }
+
+  // ============== REMOTE CONFIG METHODS ==============
+
+  /// Fetch and activate remote config
+  Future<bool> fetchAndActivateConfig() async {
+    try {
+      final result = await _remoteConfig.fetchAndActivate();
+      if (kDebugMode) {
+        logger.i('Remote Config fetch and activate result: $result');
+      }
+      return result;
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error fetching remote config: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Get string value from remote config
+  String getConfigString(String key, {String? defaultValue}) {
+    try {
+      final value = _remoteConfig.getString(key);
+      return value.isNotEmpty ? value : (defaultValue ?? '');
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error getting config string for key $key: $e');
+      }
+      return defaultValue ?? '';
+    }
+  }
+
+  /// Get boolean value from remote config
+  bool getConfigBool(String key, {bool? defaultValue}) {
+    try {
+      return _remoteConfig.getBool(key);
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error getting config bool for key $key: $e');
+      }
+      return defaultValue ?? false;
+    }
+  }
+
+  /// Get integer value from remote config
+  int getConfigInt(String key, {int? defaultValue}) {
+    try {
+      return _remoteConfig.getInt(key);
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error getting config int for key $key: $e');
+      }
+      return defaultValue ?? 0;
+    }
+  }
+
+  /// Get double value from remote config
+  double getConfigDouble(String key, {double? defaultValue}) {
+    try {
+      return _remoteConfig.getDouble(key);
+    } catch (e) {
+      if (kDebugMode) {
+        logger.e('Error getting config double for key $key: $e');
+      }
+      return defaultValue ?? 0.0;
+    }
+  }
+
+  /// Get all config values
+  Map<String, RemoteConfigValue> getAllConfigValues() {
+    return _remoteConfig.getAll();
+  }
+
+  // ============== APP CONFIGURATION HELPERS ==============
+
+  /// Check if app version is supported
+  bool isAppVersionSupported(String currentVersion) {
+    try {
+      final requiredVersion = getConfigString('app_version_required');
+      // Simple version comparison (you might want to use a proper version comparison library)
+      return _compareVersions(currentVersion, requiredVersion) >= 0;
+    } catch (e) {
+      return true; // Default to supported if check fails
+    }
+  }
+
+  /// Check if app is in maintenance mode
+  bool isMaintenanceMode() {
+    return getConfigBool('maintenance_mode');
+  }
+
+  /// Get maintenance message
+  String getMaintenanceMessage() {
+    return getConfigString('maintenance_message', 
+        defaultValue: 'Ứng dụng đang được bảo trì. Vui lòng thử lại sau.');
+  }
+
+  // ============== FEATURE FLAGS ==============
+
+  /// Check if biometric login is enabled
+  bool isBiometricLoginEnabled() {
+    return getConfigBool('enable_biometric_login', defaultValue: true);
+  }
+
+  /// Check if offline mode is enabled
+  bool isOfflineModeEnabled() {
+    return getConfigBool('enable_offline_mode', defaultValue: false);
+  }
+
+  /// Check if dark theme is enabled
+  bool isDarkThemeEnabled() {
+    return getConfigBool('enable_dark_theme', defaultValue: true);
+  }
+
+  /// Check if push notifications are enabled
+  bool isPushNotificationsEnabled() {
+    return getConfigBool('enable_push_notifications', defaultValue: true);
+  }
+
+  /// Check if location tracking is enabled
+  bool isLocationTrackingEnabled() {
+    return getConfigBool('enable_location_tracking', defaultValue: true);
+  }
+
+  // ============== UI CONFIGURATION ==============
+
+  /// Get maximum attendance distance in meters
+  int getMaxAttendanceDistance() {
+    return getConfigInt('max_attendance_distance', defaultValue: 100);
+  }
+
+  /// Get auto check out hours
+  int getAutoCheckOutHours() {
+    return getConfigInt('auto_check_out_hours', defaultValue: 8);
+  }
+
+  /// Get break time in minutes
+  int getBreakTimeMinutes() {
+    return getConfigInt('break_time_minutes', defaultValue: 60);
+  }
+
+  // ============== API CONFIGURATION ==============
+
+  /// Get API timeout in seconds
+  int getApiTimeoutSeconds() {
+    return getConfigInt('api_timeout_seconds', defaultValue: 30);
+  }
+
+  /// Get maximum retry attempts
+  int getMaxRetryAttempts() {
+    return getConfigInt('max_retry_attempts', defaultValue: 3);
+  }
+
+  /// Get cache duration in hours
+  int getCacheDurationHours() {
+    return getConfigInt('cache_duration_hours', defaultValue: 24);
+  }
+
+  /// Get backend API URL (Spring Boot backend)
+  String getBackendApiUrl() {
+    return getConfigString('backend_api_url', 
+        defaultValue: 'https://your-backend.com/api');
+  }
+
+  /// Get data API URL (postgREST)
+  String getDataApiUrl() {
+    return getConfigString('data_api_url', 
+        defaultValue: 'https://your-postgrest.com');
+  }
+
+  // ============== NOTIFICATION CONFIGURATION ==============
+
+  /// Get notification quiet hours start
+  int getNotificationQuietHoursStart() {
+    return getConfigInt('notification_quiet_hours_start', defaultValue: 22);
+  }
+
+  /// Get notification quiet hours end
+  int getNotificationQuietHoursEnd() {
+    return getConfigInt('notification_quiet_hours_end', defaultValue: 6);
+  }
+
+  /// Get maximum daily notifications
+  int getMaxDailyNotifications() {
+    return getConfigInt('max_daily_notifications', defaultValue: 10);
+  }
+
+  // ============== TRAINING CONFIGURATION ==============
+
+  /// Get training session duration in minutes
+  int getTrainingSessionDuration() {
+    return getConfigInt('training_session_duration', defaultValue: 30);
+  }
+
+  /// Check if training reminders are enabled
+  bool isTrainingRemindersEnabled() {
+    return getConfigBool('enable_training_reminders', defaultValue: true);
+  }
+
+  /// Get training progress sync interval in seconds
+  int getTrainingProgressSyncInterval() {
+    return getConfigInt('training_progress_sync_interval', defaultValue: 300);
+  }
+
+  // ============== UTILITY METHODS ==============
+
+  /// Simple version comparison
+  int _compareVersions(String version1, String version2) {
+    try {
+      final v1Parts = version1.split('.').map(int.parse).toList();
+      final v2Parts = version2.split('.').map(int.parse).toList();
+      
+      final maxLength = v1Parts.length > v2Parts.length ? v1Parts.length : v2Parts.length;
+      
+      for (int i = 0; i < maxLength; i++) {
+        final v1Part = i < v1Parts.length ? v1Parts[i] : 0;
+        final v2Part = i < v2Parts.length ? v2Parts[i] : 0;
+        
+        if (v1Part < v2Part) return -1;
+        if (v1Part > v2Part) return 1;
+      }
+      
+      return 0;
+    } catch (e) {
+      return 0;
+    }
   }
 
   /// Dispose resources
