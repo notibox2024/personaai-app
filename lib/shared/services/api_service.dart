@@ -117,12 +117,31 @@ class ApiService {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
         try {
-          // Only add auth token for data API calls (not auth API calls)
+          // Determine if this endpoint needs auth token
+          bool needsToken = false;
+          
           if (_currentMode == 'data') {
+            // Data API always needs token
+            needsToken = true;
+          } else if (_currentMode == 'backend') {
+            // Backend API needs token except for auth endpoints
+            final path = options.path;
+            final isAuthEndpoint = path.startsWith('/api/v1/auth/');
+            needsToken = !isAuthEndpoint;
+          }
+          
+          if (needsToken) {
             final token = await _tokenManager.getAccessToken();
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
+              if (kDebugMode) {
+                logger.d('Added auth token for ${options.method} ${options.path}');
+              }
+            } else if (kDebugMode) {
+              logger.w('No access token available for ${options.method} ${options.path}');
             }
+          } else if (kDebugMode) {
+            logger.d('Skipping auth token for ${options.method} ${options.path} (auth endpoint)');
           }
         } catch (e) {
           logger.w('Failed to add auth token: $e');
@@ -154,31 +173,150 @@ class ApiService {
     );
   }
 
-  /// 4. Logging Interceptor (debug only)
+  /// 4. Logging Interceptor (debug only) - with sensitive data masking
   Interceptor _createLoggingInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
         logger.i('🚀 ${options.method} ${options.uri}');
-        logger.d('📝 Headers: ${options.headers}');
+        logger.d('📝 Headers: ${_maskSensitiveHeaders(options.headers)}');
         if (options.data != null) {
-          logger.d('📦 Data: ${options.data}');
+          logger.d('📦 Data: ${_maskSensitiveData(options.data)}');
         }
         return handler.next(options);
       },
       onResponse: (response, handler) {
         logger.i('✅ ${response.statusCode} ${response.requestOptions.uri}');
-        logger.d('📄 Response: ${response.data}');
+        logger.d('📄 Response: ${_maskSensitiveData(response.data)}');
         return handler.next(response);
       },
       onError: (error, handler) {
         logger.e('❌ ${error.response?.statusCode} ${error.requestOptions.uri}');
         logger.e('🔍 Error: ${error.message}');
         if (error.response?.data != null) {
-          logger.e('📄 Error Data: ${error.response?.data}');
+          logger.e('📄 Error Data: ${_maskSensitiveData(error.response?.data)}');
         }
         return handler.next(error);
       },
     );
+  }
+
+  /// Mask sensitive data in headers
+  Map<String, dynamic> _maskSensitiveHeaders(Map<String, dynamic> headers) {
+    final maskedHeaders = Map<String, dynamic>.from(headers);
+    
+    // Sensitive headers to mask
+    const sensitiveHeaderKeys = [
+      'authorization',
+      'Authorization',
+      'AUTHORIZATION',
+      'x-api-key',
+      'X-API-Key',
+      'x-auth-token',
+      'X-Auth-Token',
+    ];
+    
+    for (final key in sensitiveHeaderKeys) {
+      if (maskedHeaders.containsKey(key)) {
+        final value = maskedHeaders[key]?.toString() ?? '';
+        if (value.isNotEmpty) {
+          // Show only first 10 chars and last 4 chars for tokens
+          if (value.length > 20) {
+            maskedHeaders[key] = '${value.substring(0, 10)}***...***${value.substring(value.length - 4)}';
+          } else {
+            maskedHeaders[key] = '***MASKED***';
+          }
+        }
+      }
+    }
+    
+    return maskedHeaders;
+  }
+
+  /// Mask sensitive data in request/response body
+  dynamic _maskSensitiveData(dynamic data) {
+    if (data == null) return null;
+    
+    // Handle Map/JSON objects
+    if (data is Map<String, dynamic>) {
+      final maskedData = Map<String, dynamic>.from(data);
+      
+      // Sensitive fields to mask
+      const sensitiveFields = [
+        'password',
+        'Password',
+        'PASSWORD',
+        'newPassword',
+        'oldPassword',
+        'confirmPassword',
+        'currentPassword',
+        'accessToken',
+        'access_token',
+        'refreshToken',
+        'refresh_token',
+        'token',
+        'Token',
+        'TOKEN',
+        'apiKey',
+        'api_key',
+        'secret',
+        'Secret',
+        'SECRET',
+        'pin',
+        'Pin',
+        'PIN',
+        'otp',
+        'Otp',
+        'OTP',
+        'ssn',
+        'socialSecurityNumber',
+        'creditCardNumber',
+        'cardNumber',
+        'cvv',
+        'cvc',
+      ];
+      
+      for (final field in sensitiveFields) {
+        if (maskedData.containsKey(field)) {
+          final value = maskedData[field]?.toString() ?? '';
+          if (value.isNotEmpty) {
+            // Different masking strategies based on field type
+            if (['password', 'Password', 'PASSWORD', 'newPassword', 'oldPassword', 
+                 'confirmPassword', 'currentPassword', 'pin', 'Pin', 'PIN',
+                 'otp', 'Otp', 'OTP', 'cvv', 'cvc'].contains(field)) {
+              maskedData[field] = '***HIDDEN***';
+            } else if (['accessToken', 'access_token', 'refreshToken', 'refresh_token',
+                      'token', 'Token', 'TOKEN', 'apiKey', 'api_key'].contains(field)) {
+              // Show partial token for debugging
+              if (value.length > 20) {
+                maskedData[field] = '${value.substring(0, 8)}***...***${value.substring(value.length - 4)}';
+              } else {
+                maskedData[field] = '***TOKEN***';
+              }
+            } else {
+              // For other sensitive fields
+              maskedData[field] = '***MASKED***';
+            }
+          }
+        }
+      }
+      
+      // Recursively mask nested objects
+      for (final key in maskedData.keys) {
+        if (maskedData[key] is Map || maskedData[key] is List) {
+          maskedData[key] = _maskSensitiveData(maskedData[key]);
+        }
+      }
+      
+      return maskedData;
+    }
+    
+    // Handle List/Array
+    if (data is List) {
+      return data.map((item) => _maskSensitiveData(item)).toList();
+    }
+    
+    // Return primitive types as-is
+    return data;
   }
 
   /// Handle 401 errors with token refresh

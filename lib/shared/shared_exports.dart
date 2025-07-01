@@ -24,6 +24,7 @@ export 'services/performance_monitor.dart';
 
 // ============== MODELS ==============
 export 'models/weather_data.dart';
+export 'models/weather_request.dart';
 
 // ============== CONSTANTS ==============
 export 'constants/assets.dart';

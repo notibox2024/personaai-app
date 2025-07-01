@@ -28,17 +28,20 @@ class GlobalServices {
       await PerformanceMonitor().initialize();
       
       // Network layer with proper configuration
-      ApiService().initialize(
+      await ApiService().initialize(
         baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
         sendTimeout: const Duration(seconds: 5),
       );
       
+      // Set default mode to backend API (with auth token for non-auth endpoints)
+      await ApiService().switchToBackendApi();
+      
       // Feature support services
       await AppLifecycleService().initialize();
       
-      // Services without initialize() method - just ensure they're created
+      // Services without initialize() method - just ensure they're created AFTER ApiService is ready
       WeatherService(); // Singleton creation
       NotificationDemoService(); // Singleton creation
       

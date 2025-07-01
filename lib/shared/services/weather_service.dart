@@ -1,24 +1,32 @@
 import '../models/weather_data.dart';
+import '../models/weather_request.dart';
 import 'api_service.dart';
+import 'token_manager.dart';
 import 'dart:math' as math;
+import 'package:logger/logger.dart';
 
-/// Service để lấy dữ liệu thời tiết từ Open-Meteo API
+/// Service để lấy dữ liệu thời tiết từ backend API
 class WeatherService {
   static final WeatherService _instance = WeatherService._internal();
   factory WeatherService() => _instance;
   WeatherService._internal();
 
-  final ApiService _apiService = ApiService();
+  // Sử dụng getter để đảm bảo lấy ApiService singleton đã được khởi tạo
+  ApiService get _apiService => ApiService();
+  final Logger _logger = Logger();
 
-  // Base URL cho Open-Meteo API
-  static const String _baseUrl = 'https://api.open-meteo.com/v1';
+  // Backend API endpoints
+  static const String _baseEndpoint = '/api/v1/weather';
+  static const String _currentEndpoint = '$_baseEndpoint/current';
+  static const String _hanoiTestEndpoint = '$_baseEndpoint/hanoi';
+  static const String _berlinTestEndpoint = '$_baseEndpoint/berlin';
 
   // Tọa độ mặc định (TP.HCM) - có thể thay đổi khi lấy được location từ device
   static const double _defaultLatitude = 10.75;
   static const double _defaultLongitude = 106.67;
 
   // Cache system
-  static const Duration _cacheExpiration = Duration(hours: 1);
+  static const Duration _cacheExpiration = Duration(minutes: 30); // Backend cache thời gian ngắn hơn
   static const double _cacheRadiusKm = 10.0; // Bán kính cache 10km
   final Map<String, _CachedWeatherData> _cache = {};
 
@@ -112,14 +120,18 @@ class WeatherService {
     return getCurrentWeatherByLocation(_defaultLatitude, _defaultLongitude);
   }
 
-  /// Lấy thời tiết hiện tại theo tọa độ cụ thể
+  /// Lấy thời tiết hiện tại theo tọa độ cụ thể (sử dụng POST endpoint)
   Future<WeatherData> getCurrentWeatherByLocation(
     double latitude,
-    double longitude,
-  ) async {
+    double longitude, {
+    String temperatureUnit = TemperatureUnit.celsius,
+    String windspeedUnit = WindSpeedUnit.kmh,
+    String precipitationUnit = PrecipitationUnit.mm,
+  }) async {
     // Kiểm tra cache trong bán kính trước
     final cachedData = _getFromCache(latitude, longitude);
     if (cachedData != null) {
+      _logger.d('Weather data found in cache for $latitude, $longitude');
       return cachedData;
     }
 
@@ -127,13 +139,80 @@ class WeatherService {
     _cleanExpiredCache();
 
     try {
+      _logger.i('Fetching weather from backend API for $latitude, $longitude');
+      
+      // Debug: Kiểm tra token availability
+      final tokenManager = TokenManager();
+      final hasToken = await tokenManager.getAccessToken() != null;
+      _logger.d('Token available: $hasToken');
+      
+      // Tạo request model
+      final request = WeatherRequest(
+        latitude: latitude,
+        longitude: longitude,
+        currentWeather: true,
+        timezone: 'auto',
+        temperatureUnit: temperatureUnit,
+        windspeedUnit: windspeedUnit,
+        precipitationUnit: precipitationUnit,
+      );
+
+      // Gọi backend API với authentication
+      final response = await _apiService.post(
+        _currentEndpoint,
+        data: request.toJson(),
+      );
+
+      final weatherData = WeatherData.fromJson(response.data);
+      
+      // Lưu vào cache với tọa độ
+      final cacheKey = _getCacheKey(latitude, longitude);
+      _saveToCache(cacheKey, weatherData, latitude, longitude);
+      
+      _logger.i('Weather data fetched successfully from backend');
+      return weatherData;
+      
+    } on ApiException catch (e) {
+      _logger.e('Backend weather API error: ${e.message}');
+      throw WeatherException(
+        message: 'Không thể lấy dữ liệu thời tiết từ backend: ${e.message}',
+        type: WeatherExceptionType.apiError,
+        originalException: e,
+      );
+    } catch (e) {
+      _logger.e('Unknown weather service error: $e');
+      throw WeatherException(
+        message: 'Lỗi không xác định khi lấy dữ liệu thời tiết',
+        type: WeatherExceptionType.unknown,
+        originalException: e,
+      );
+    }
+  }
+
+  /// Lấy thời tiết hiện tại theo tọa độ cụ thể (sử dụng GET endpoint đơn giản)
+  Future<WeatherData> getCurrentWeatherSimple(
+    double latitude,
+    double longitude,
+  ) async {
+    // Kiểm tra cache trong bán kính trước
+    final cachedData = _getFromCache(latitude, longitude);
+    if (cachedData != null) {
+      _logger.d('Weather data found in cache for $latitude, $longitude');
+      return cachedData;
+    }
+
+    // Dọn dẹp cache hết hạn
+    _cleanExpiredCache();
+
+    try {
+      _logger.i('Fetching weather from backend API (simple) for $latitude, $longitude');
+      
+      // Gọi backend API GET endpoint với query parameters
       final response = await _apiService.get(
-        '$_baseUrl/forecast',
+        _currentEndpoint,
         queryParameters: {
           'latitude': latitude,
           'longitude': longitude,
-          'current_weather': true,
-          'timezone': 'auto', // Tự động detect timezone
         },
       );
 
@@ -143,14 +222,18 @@ class WeatherService {
       final cacheKey = _getCacheKey(latitude, longitude);
       _saveToCache(cacheKey, weatherData, latitude, longitude);
       
+      _logger.i('Weather data fetched successfully from backend (simple)');
       return weatherData;
+      
     } on ApiException catch (e) {
+      _logger.e('Backend weather API error: ${e.message}');
       throw WeatherException(
-        message: 'Không thể lấy dữ liệu thời tiết: ${e.message}',
+        message: 'Không thể lấy dữ liệu thời tiết từ backend: ${e.message}',
         type: WeatherExceptionType.apiError,
         originalException: e,
       );
     } catch (e) {
+      _logger.e('Unknown weather service error: $e');
       throw WeatherException(
         message: 'Lỗi không xác định khi lấy dữ liệu thời tiết',
         type: WeatherExceptionType.unknown,
@@ -159,87 +242,100 @@ class WeatherService {
     }
   }
 
-  /// Lấy thời tiết với forecast 7 ngày (tùy chọn mở rộng)
-  Future<WeatherData> getWeatherForecast({
-    double? latitude,
-    double? longitude,
-    int days = 7,
-  }) async {
-    final lat = latitude ?? _defaultLatitude;
-    final lng = longitude ?? _defaultLongitude;
-
-    // Kiểm tra cache trong bán kính trước (với prefix forecast)
-    final existingCache = _findCacheInRadius(lat, lng);
-    if (existingCache != null && existingCache.forecastDays == days) {
-      return existingCache.data;
-    }
-
-    // Dọn dẹp cache hết hạn
-    _cleanExpiredCache();
-
+  /// Lấy thời tiết Hà Nội (test endpoint)
+  Future<WeatherData> getHanoiWeather() async {
     try {
-      final response = await _apiService.get(
-        '$_baseUrl/forecast',
-        queryParameters: {
-          'latitude': lat,
-          'longitude': lng,
-          'current_weather': true,
-          'daily': 'weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum',
-          'forecast_days': days,
-          'timezone': 'auto',
-        },
-      );
-
+      _logger.i('Fetching Hanoi weather from test endpoint');
+      
+      final response = await _apiService.get(_hanoiTestEndpoint);
       final weatherData = WeatherData.fromJson(response.data);
       
-      // Lưu vào cache với thông tin forecast
-      final cacheKey = 'forecast_${days}_${_getCacheKey(lat, lng)}';
-      _cache[cacheKey] = _CachedWeatherData(
-        data: weatherData,
-        timestamp: DateTime.now(),
-        latitude: lat,
-        longitude: lng,
-        forecastDays: days,
-      );
-      
+      _logger.i('Hanoi weather data fetched successfully');
       return weatherData;
+      
     } on ApiException catch (e) {
+      _logger.e('Hanoi weather API error: ${e.message}');
       throw WeatherException(
-        message: 'Không thể lấy dự báo thời tiết: ${e.message}',
+        message: 'Không thể lấy dữ liệu thời tiết Hà Nội: ${e.message}',
         type: WeatherExceptionType.apiError,
         originalException: e,
       );
     } catch (e) {
+      _logger.e('Unknown Hanoi weather error: $e');
       throw WeatherException(
-        message: 'Lỗi không xác định khi lấy dự báo thời tiết',
+        message: 'Lỗi không xác định khi lấy thời tiết Hà Nội',
         type: WeatherExceptionType.unknown,
         originalException: e,
       );
     }
   }
 
-  /// Kiểm tra tính khả dụng của API
+  /// Lấy thời tiết Berlin (test endpoint)
+  Future<WeatherData> getBerlinWeather() async {
+    try {
+      _logger.i('Fetching Berlin weather from test endpoint');
+      
+      final response = await _apiService.get(_berlinTestEndpoint);
+      final weatherData = WeatherData.fromJson(response.data);
+      
+      _logger.i('Berlin weather data fetched successfully');
+      return weatherData;
+      
+    } on ApiException catch (e) {
+      _logger.e('Berlin weather API error: ${e.message}');
+      throw WeatherException(
+        message: 'Không thể lấy dữ liệu thời tiết Berlin: ${e.message}',
+        type: WeatherExceptionType.apiError,
+        originalException: e,
+      );
+    } catch (e) {
+      _logger.e('Unknown Berlin weather error: $e');
+      throw WeatherException(
+        message: 'Lỗi không xác định khi lấy thời tiết Berlin',
+        type: WeatherExceptionType.unknown,
+        originalException: e,
+      );
+    }
+  }
+
+  /// Kiểm tra tính khả dụng của backend API
   Future<bool> checkApiAvailability() async {
     try {
-      await getCurrentWeather();
+      await getHanoiWeather(); // Sử dụng test endpoint không cần auth
       return true;
     } catch (e) {
+      _logger.w('Backend weather API not available: $e');
       return false;
     }
   }
 
   /// Lấy thông tin thời tiết cho nhiều địa điểm
   Future<List<WeatherData>> getMultipleLocationsWeather(
-    List<LocationCoordinate> locations,
-  ) async {
+    List<LocationCoordinate> locations, {
+    String temperatureUnit = TemperatureUnit.celsius,
+    String windspeedUnit = WindSpeedUnit.kmh,
+    String precipitationUnit = PrecipitationUnit.mm,
+  }) async {
     try {
+      _logger.i('Fetching weather for ${locations.length} locations');
+      
       // Gọi API song song cho nhiều địa điểm
       final futures = locations.map((location) => 
-        getCurrentWeatherByLocation(location.latitude, location.longitude)
+        getCurrentWeatherByLocation(
+          location.latitude, 
+          location.longitude,
+          temperatureUnit: temperatureUnit,
+          windspeedUnit: windspeedUnit,
+          precipitationUnit: precipitationUnit,
+        )
       ).toList();
 
-      return await Future.wait(futures);
+      final results = await Future.wait(futures);
+      _logger.i('Successfully fetched weather for ${results.length} locations');
+      return results;
+      
     } catch (e) {
+      _logger.e('Error fetching multiple locations weather: $e');
       throw WeatherException(
         message: 'Không thể lấy thời tiết cho nhiều địa điểm',
         type: WeatherExceptionType.unknown,
@@ -248,30 +344,78 @@ class WeatherService {
     }
   }
 
-  /// Lấy thời tiết theo tên thành phố (cần geocoding service)
-  /// TODO: Implement geocoding để convert city name -> coordinates
-  Future<WeatherData> getWeatherByCity(String cityName) async {
+  /// Lấy thời tiết theo tên thành phố (sử dụng predefined coordinates)
+  Future<WeatherData> getWeatherByCity(String cityName, {
+    String temperatureUnit = TemperatureUnit.celsius,
+    String windspeedUnit = WindSpeedUnit.kmh,
+    String precipitationUnit = PrecipitationUnit.mm,
+  }) async {
     WeatherData weatherData;
     
-    // Tạm thời sử dụng coordinate mặc định
-    // Trong tương lai có thể tích hợp với geocoding service
+    _logger.i('Fetching weather for city: $cityName');
+    
+    // Sử dụng coordinate được định nghĩa sẵn
     switch (cityName.toLowerCase()) {
       case 'ho chi minh':
       case 'hcm':
       case 'saigon':
-        weatherData = await getCurrentWeatherByLocation(10.75, 106.67);
+        weatherData = await getCurrentWeatherByLocation(
+          WeatherCities.hoChiMinh.latitude, 
+          WeatherCities.hoChiMinh.longitude,
+          temperatureUnit: temperatureUnit,
+          windspeedUnit: windspeedUnit,
+          precipitationUnit: precipitationUnit,
+        );
         break;
       case 'hanoi':
       case 'ha noi':
-        weatherData = await getCurrentWeatherByLocation(21.0285, 105.8542);
+        // Có thể sử dụng test endpoint cho Hà Nội
+        try {
+          weatherData = await getHanoiWeather();
+        } catch (e) {
+          // Fallback to coordinate-based request
+          weatherData = await getCurrentWeatherByLocation(
+            WeatherCities.hanoi.latitude,
+            WeatherCities.hanoi.longitude,
+            temperatureUnit: temperatureUnit,
+            windspeedUnit: windspeedUnit,
+            precipitationUnit: precipitationUnit,
+          );
+        }
         break;
       case 'da nang':
-        weatherData = await getCurrentWeatherByLocation(16.0544, 108.2022);
+        weatherData = await getCurrentWeatherByLocation(
+          WeatherCities.daNang.latitude,
+          WeatherCities.daNang.longitude,
+          temperatureUnit: temperatureUnit,
+          windspeedUnit: windspeedUnit,
+          precipitationUnit: precipitationUnit,
+        );
+        break;
+      case 'can tho':
+        weatherData = await getCurrentWeatherByLocation(
+          WeatherCities.canTho.latitude,
+          WeatherCities.canTho.longitude,
+          temperatureUnit: temperatureUnit,
+          windspeedUnit: windspeedUnit,
+          precipitationUnit: precipitationUnit,
+        );
+        break;
+      case 'hai phong':
+        weatherData = await getCurrentWeatherByLocation(
+          WeatherCities.haiphong.latitude,
+          WeatherCities.haiphong.longitude,
+          temperatureUnit: temperatureUnit,
+          windspeedUnit: windspeedUnit,
+          precipitationUnit: precipitationUnit,
+        );
         break;
       default:
+        _logger.w('City not found: $cityName, using default location');
         weatherData = await getCurrentWeather(); // Fallback to default location
     }
     
+    _logger.i('Successfully fetched weather for city: $cityName');
     return weatherData;
   }
 
@@ -293,8 +437,9 @@ class WeatherService {
       'total_entries': _cache.length,
       'valid_entries': validEntries,
       'expired_entries': expiredEntries,
-      'cache_expiration_hours': _cacheExpiration.inHours,
+      'cache_expiration_minutes': _cacheExpiration.inMinutes,
       'cache_radius_km': _cacheRadiusKm,
+      'backend_api': true,
     };
   }
 
@@ -312,12 +457,46 @@ class WeatherService {
         'longitude': cachedData.longitude,
         'cached_at': cachedData.timestamp.toIso8601String(),
         'is_valid': isValid,
-        'forecast_days': cachedData.forecastDays,
         'expires_in_minutes': isValid 
           ? _cacheExpiration.inMinutes - now.difference(cachedData.timestamp).inMinutes
           : 0,
       };
     }).toList();
+  }
+
+  /// Test connectivity với tất cả endpoints
+  Future<Map<String, bool>> testAllEndpoints() async {
+    final results = <String, bool>{};
+    
+    try {
+      await getHanoiWeather();
+      results['hanoi_test'] = true;
+    } catch (e) {
+      results['hanoi_test'] = false;
+    }
+    
+    try {
+      await getBerlinWeather();
+      results['berlin_test'] = true;
+    } catch (e) {
+      results['berlin_test'] = false;
+    }
+    
+    try {
+      await getCurrentWeatherSimple(21.0285, 105.8542); // Hanoi coordinates
+      results['current_get'] = true;
+    } catch (e) {
+      results['current_get'] = false;
+    }
+    
+    try {
+      await getCurrentWeatherByLocation(21.0285, 105.8542); // Hanoi coordinates
+      results['current_post'] = true;
+    } catch (e) {
+      results['current_post'] = false;
+    }
+    
+    return results;
   }
 }
 
@@ -327,14 +506,12 @@ class _CachedWeatherData {
   final DateTime timestamp;
   final double latitude;
   final double longitude;
-  final int? forecastDays;
 
   const _CachedWeatherData({
     required this.data,
     required this.timestamp,
     required this.latitude,
     required this.longitude,
-    this.forecastDays,
   });
 }
 
