@@ -51,13 +51,8 @@ class BackgroundTokenRefreshService {
     bool operationEnded = false;
     
     try {
-      // Ensure AuthService is initialized (getter will provide instance)
-      await _authService.initialize();
-      
-      // Initialize performance monitor
-      await _performanceMonitor.initialize();
-      
-      // Start health check monitoring
+      // Services đã được initialize bởi GlobalServices và AuthModule
+      // Chỉ cần start health check monitoring
       _startHealthCheckMonitoring();
       
       _isInitialized = true;

@@ -9,6 +9,8 @@ import 'dart:async';
 import 'firebase_options.dart';
 import 'themes/themes.dart';
 import 'app_layout.dart';
+import 'app_modules.dart';
+import 'features/auth/auth_module.dart';
 import 'shared/shared_exports.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_exports.dart';
@@ -36,31 +38,6 @@ void main() async {
     // Cấu hình Firebase Messaging background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     
-    // Khởi tạo Firebase service
-    await FirebaseService().initialize();
-    logger.i('✅ Firebase service initialized');
-    
-    // Khởi tạo Device Info Service
-    await DeviceInfoService().initialize();
-    logger.i('✅ Device info service initialized');
-    
-    // Khởi tạo Token Manager
-    await TokenManager().initialize();
-    logger.i('✅ Token manager initialized');
-    
-    // Khởi tạo Performance Monitor
-    await PerformanceMonitor().initialize();
-    logger.i('✅ Performance monitor initialized');
-    
-    // Khởi tạo demo notification service
-    NotificationDemoService().initialize();
-    await NotificationDemoService().addDemoNotifications();
-    logger.i('✅ Notification service initialized');
-    
-    // Khởi tạo App Lifecycle Service
-    await AppLifecycleService().initialize();
-    logger.i('✅ App lifecycle service initialized');
-    
     // Cấu hình Crashlytics error handling
     FlutterError.onError = (errorDetails) {
       FirebaseService().recordFlutterError(errorDetails);
@@ -71,15 +48,9 @@ void main() async {
       FirebaseService().recordError(error, stack, reason: 'PlatformDispatcher error');
       return true;
     };
-    
-    // Khởi tạo API service
-    ApiService().initialize(
-      baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      sendTimeout: const Duration(seconds: 5),
-    );
-    logger.i('✅ API service initialized');
+
+    // Initialize all application modules
+    await AppModules.initialize();
     
     logger.i('🎯 All services initialized successfully!');
     
@@ -105,37 +76,16 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
   
   // Theme mode state management
   ThemeMode _themeMode = ThemeMode.system;
-  
-  // Services
-  late final AuthService _authService;
-  late final BackgroundTokenRefreshService _backgroundRefreshService;
 
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-  }
-
-  Future<void> _initializeServices() async {
-    try {
-      // Initialize auth services
-      _authService = AuthService();
-      _backgroundRefreshService = BackgroundTokenRefreshService();
-      
-      // Initialize background service
-      await _backgroundRefreshService.initialize();
-      
-      logger.i('✅ Auth services initialized');
-    } catch (e) {
-      logger.e('❌ Error initializing auth services: $e');
-    }
+    // No need for additional service initialization - handled by AppModules
   }
 
   @override
   void dispose() {
-    // Dispose services
-    _backgroundRefreshService.dispose();
-    AppLifecycleService().dispose();
+    // Dispose managed by AppModules
     super.dispose();
   }
 
@@ -165,12 +115,13 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        // Auth BLoC Provider
+        // Auth BLoC Provider - now using AuthModule
         BlocProvider<AuthBloc>(
           create: (context) {
+            final authModule = AuthModule.instance;
             final bloc = AuthBloc(
-              authService: _authService,
-              backgroundService: _backgroundRefreshService,
+              authService: authModule.authService,
+              backgroundService: authModule.backgroundService,
             );
             
             // Initialize auth state

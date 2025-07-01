@@ -173,10 +173,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     try {
       emit(const AuthLoading());
       
-      // Initialize auth service only (background service is initialized in main.dart)
-      await _authService.initialize();
-      
-      // Listen to auth state changes
+      // AuthService đã được initialize bởi AuthModule - không cần init lại
+      // Listen to auth state changes từ service đã initialized
       _startListeningToAuthChanges();
       
       // Start token expiry monitoring
@@ -198,12 +196,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     try {
       emit(const AuthLoading());
       
-      final request = LoginRequest(
-        username: event.username,
-        password: event.password,
-      );
-      
-      await _authService.login(request);
+      await _authService.login(event.username, event.password);
       
       logger.i('Login attempt completed for user: ${event.username}');
     } catch (e) {
@@ -362,7 +355,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
       const Duration(minutes: 1), // Check every minute
       (timer) async {
         if (_authService.isAuthenticated) {
-          final isNearExpiry = await _authService.isTokenNearExpiry();
+          final isNearExpiry = _authService.isTokenNearExpiry;
           final currentUser = _authService.currentUser;
           
           if (isNearExpiry && currentUser != null) {

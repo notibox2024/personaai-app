@@ -13,7 +13,8 @@ import '../../data/models/upcoming_event.dart';
 import '../../../../shared/shared_exports.dart';
 import 'package:geolocator/geolocator.dart';
 
-// Auth Integration
+// Auth Integration - use AuthModule for cross-feature access
+import '../../../auth/auth_module.dart';
 import '../../../auth/auth_exports.dart';
 
 // Widgets
@@ -41,6 +42,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   Position? _currentPosition;
   bool _isLocationLoading = false;
+
+  // Get AuthProvider from AuthModule for cross-feature access
+  late final authProvider = AuthModule.instance.provider;
 
   @override
   void initState() {
@@ -74,20 +78,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         statusBarIconBrightness: Brightness.light, // Icons màu trắng cho header sẫm
         statusBarBrightness: Brightness.dark,      // Cho iOS
       ),
-      child: BlocConsumer<AuthBloc, AuthBlocState>(
-        listener: (context, state) {
-          // Handle auth state changes
-          if (state is AuthUnauthenticated || state is AuthTokenExpired) {
+      child: StreamBuilder(
+        stream: authProvider.authStateStream,
+        builder: (context, snapshot) {
+          // Handle auth state changes via AuthProvider instead of BlocConsumer
+          if (!authProvider.isAuthenticated) {
             // Navigate to login page
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/login',
-              (route) => false,
-            );
-          }
-        },
-        builder: (context, authState) {
-          // Show loading if auth is not ready
-          if (authState is AuthInitial || authState is AuthLoading) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/login',
+                (route) => false,
+              );
+            });
             return const Scaffold(
               body: Center(
                 child: CircularProgressIndicator(),
@@ -95,8 +97,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             );
           }
           
-          // Get user info from auth state
-          final user = authState is AuthAuthenticated ? authState.user : null;
+          // Get user info from auth provider
+          final user = authProvider.currentUser;
           
           return Scaffold(
             // Sử dụng surfaceContainerLowest làm background chính để tạo contrast với cards (surface)

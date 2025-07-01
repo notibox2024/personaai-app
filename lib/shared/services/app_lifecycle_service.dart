@@ -176,7 +176,7 @@ class AppLifecycleService with WidgetsBindingObserver {
     // Check auth status
     if (_authService.isAuthenticated) {
       // Validate token if near expiry
-      final isNearExpiry = await _authService.isTokenNearExpiry();
+      final isNearExpiry = _authService.isTokenNearExpiry;
       if (isNearExpiry) {
         await _authService.forceRefreshToken();
       }
