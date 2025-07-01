@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../widgets/login_header.dart';
 import '../widgets/login_form.dart';
 import '../widgets/login_footer.dart';
+import '../widgets/custom_painters.dart';
 import '../../../../themes/colors.dart';
 import '../../../../shared/widgets/svg_asset.dart';
 import 'dart:math' as math;
@@ -79,9 +80,28 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   void dispose() {
-    _floatingController.dispose();
-    _rotationController.dispose();
-    _fadeController.dispose();
+    // Stop and dispose animations safely
+    try {
+      _floatingController.stop();
+      _floatingController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
+    try {
+      _rotationController.stop();
+      _rotationController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
+    try {
+      _fadeController.stop();
+      _fadeController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
     super.dispose();
   }
 
@@ -435,65 +455,4 @@ class _LoginPageState extends State<LoginPage>
     // Điều hướng đến trang chính
     Navigator.of(context).pushReplacementNamed('/main');
   }
-}
-
-/// Custom painter cho hình hexagon
-class HexagonPainter extends CustomPainter {
-  final Color color;
-  
-  HexagonPainter({required this.color});
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-      
-    final path = Path();
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    
-    for (int i = 0; i < 6; i++) {
-      final angle = (i * 60) * 3.14159 / 180;
-      final x = center.dx + radius * math.cos(angle);
-      final y = center.dy + radius * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    
-    canvas.drawPath(path, paint);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Custom painter cho hình triangle
-class TrianglePainter extends CustomPainter {
-  final Color color;
-  
-  TrianglePainter({required this.color});
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-      
-    final path = Path()
-      ..moveTo(size.width / 2, 0)
-      ..lineTo(0, size.height)
-      ..lineTo(size.width, size.height)
-      ..close();
-    
-    canvas.drawPath(path, paint);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 } 

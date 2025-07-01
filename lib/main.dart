@@ -4,6 +4,7 @@ import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:logger/logger.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 import 'firebase_options.dart';
 import 'themes/themes.dart';
@@ -12,6 +13,10 @@ import 'shared/shared_exports.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_exports.dart';
 import 'shared/services/background_message_handler.dart';
+import 'shared/services/app_lifecycle_service.dart';
+import 'shared/services/device_info_service.dart';
+import 'shared/services/token_manager.dart';
+import 'shared/services/performance_monitor.dart';
 
 void main() async {
   final logger = Logger();
@@ -20,20 +25,41 @@ void main() async {
     // Đảm bảo Flutter widgets đã được khởi tạo
     WidgetsFlutterBinding.ensureInitialized();
     
+    logger.i('🚀 PersonaAI App Starting...');
+    
     // Khởi tạo Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    logger.i('✅ Firebase initialized');
     
     // Cấu hình Firebase Messaging background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     
     // Khởi tạo Firebase service
     await FirebaseService().initialize();
+    logger.i('✅ Firebase service initialized');
+    
+    // Khởi tạo Device Info Service
+    await DeviceInfoService().initialize();
+    logger.i('✅ Device info service initialized');
+    
+    // Khởi tạo Token Manager
+    await TokenManager().initialize();
+    logger.i('✅ Token manager initialized');
+    
+    // Khởi tạo Performance Monitor
+    await PerformanceMonitor().initialize();
+    logger.i('✅ Performance monitor initialized');
     
     // Khởi tạo demo notification service
     NotificationDemoService().initialize();
     await NotificationDemoService().addDemoNotifications();
+    logger.i('✅ Notification service initialized');
+    
+    // Khởi tạo App Lifecycle Service
+    await AppLifecycleService().initialize();
+    logger.i('✅ App lifecycle service initialized');
     
     // Cấu hình Crashlytics error handling
     FlutterError.onError = (errorDetails) {
@@ -53,9 +79,12 @@ void main() async {
       receiveTimeout: const Duration(seconds: 15),
       sendTimeout: const Duration(seconds: 5),
     );
+    logger.i('✅ API service initialized');
+    
+    logger.i('🎯 All services initialized successfully!');
     
     // Chạy app
-    runApp(const MyApp());
+    runApp(const PersonaAIApp());
   }, (error, stackTrace) {
     // Log async errors to Firebase Crashlytics
     logger.e('Async error caught: $error');
@@ -64,26 +93,49 @@ void main() async {
   });
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class PersonaAIApp extends StatefulWidget {
+  const PersonaAIApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<PersonaAIApp> createState() => _PersonaAIAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class _PersonaAIAppState extends State<PersonaAIApp> {
+  final logger = Logger();
+  
   // Theme mode state management
   ThemeMode _themeMode = ThemeMode.system;
+  
+  // Services
+  late final AuthService _authService;
+  late final BackgroundTokenRefreshService _backgroundRefreshService;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      // Initialize auth services
+      _authService = AuthService();
+      _backgroundRefreshService = BackgroundTokenRefreshService();
+      
+      // Initialize background service
+      await _backgroundRefreshService.initialize();
+      
+      logger.i('✅ Auth services initialized');
+    } catch (e) {
+      logger.e('❌ Error initializing auth services: $e');
+    }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    // Dispose services
+    _backgroundRefreshService.dispose();
+    AppLifecycleService().dispose();
     super.dispose();
   }
 
@@ -105,29 +157,111 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           _themeMode = ThemeMode.light;
           break;
       }
+      logger.d('Theme changed to: $_themeMode');
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'PersonaAI',
-      debugShowCheckedModeBanner: false,
-      
-      // Theme Configuration - Sử dụng theme system chuyên nghiệp
-      theme: KienlongBankTheme.lightTheme,
-      darkTheme: KienlongBankTheme.darkTheme,
-      themeMode: _themeMode,
-      
-      // Routes
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const SplashScreen(),
-        '/login': (context) => const LoginPage(),
-        '/main': (context) => AppLayout(onThemeToggle: toggleTheme),
-      },
+    return MultiBlocProvider(
+      providers: [
+        // Auth BLoC Provider
+        BlocProvider<AuthBloc>(
+          create: (context) {
+            final bloc = AuthBloc(
+              authService: _authService,
+              backgroundService: _backgroundRefreshService,
+            );
+            
+            // Initialize auth state
+            bloc.add(const AuthInitialize());
+            
+            return bloc;
+          },
+        ),
+      ],
+      child: MaterialApp(
+        title: 'PersonaAI',
+        debugShowCheckedModeBanner: false,
+        
+        // Theme Configuration - Sử dụng theme system chuyên nghiệp
+        theme: KienlongBankTheme.lightTheme,
+        darkTheme: KienlongBankTheme.darkTheme,
+        themeMode: _themeMode,
+        
+        // Add global BlocListener inside MaterialApp
+        builder: (context, child) {
+          return BlocListener<AuthBloc, AuthBlocState>(
+            listener: (context, state) {
+              // Handle auth state changes globally with ScaffoldMessenger available
+              if (state is AuthError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi xác thực: ${state.message}'),
+                    backgroundColor: Colors.red,
+                    action: SnackBarAction(
+                      label: 'OK',
+                      textColor: Colors.white,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                    ),
+                  ),
+                );
+              }
+              
+              if (state is AuthTokenExpired) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'),
+                    backgroundColor: Colors.orange,
+                    action: SnackBarAction(
+                      label: 'OK',
+                      textColor: Colors.white,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                    ),
+                  ),
+                );
+              }
+            },
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        
+        // Navigation
+        home: BlocBuilder<AuthBloc, AuthBlocState>(
+          builder: (context, state) {
+            // Show splash screen during initialization
+            if (state is AuthInitial || state is AuthLoading) {
+              return const SplashScreen();
+            }
+            
+            // Navigate based on auth state
+            if (state is AuthAuthenticated) {
+              return AppLayout(onThemeToggle: toggleTheme);
+            } else {
+              return const ReactiveLoginPage();
+            }
+          },
+        ),
+        
+        // Routes for manual navigation
+        routes: {
+          '/splash': (context) => const SplashScreen(),
+          '/login': (context) => const ReactiveLoginPage(),
+          '/demo-login': (context) => const LoginPage(),
+          '/main': (context) => AppLayout(onThemeToggle: toggleTheme),
+        },
+      ),
     );
   }
+}
+
+// Legacy MyApp class renamed for backward compatibility
+class MyApp extends PersonaAIApp {
+  const MyApp({super.key});
 }
 
 class MyHomePage extends StatefulWidget {

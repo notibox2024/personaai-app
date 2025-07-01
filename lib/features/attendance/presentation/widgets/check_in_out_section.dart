@@ -72,8 +72,21 @@ class _CheckInOutSectionState extends State<CheckInOutSection>
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _rippleController.dispose();
+    // Stop and dispose animations safely
+    try {
+      _pulseController.stop();
+      _pulseController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
+    try {
+      _rippleController.stop();
+      _rippleController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
     super.dispose();
   }
 

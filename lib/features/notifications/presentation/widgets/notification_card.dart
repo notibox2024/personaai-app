@@ -50,7 +50,14 @@ class _NotificationCardState extends State<NotificationCard>
 
   @override
   void dispose() {
-    _animationController.dispose();
+    // Stop and dispose animation safely
+    try {
+      _animationController.stop();
+      _animationController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
     super.dispose();
   }
 

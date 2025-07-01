@@ -77,25 +77,42 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Start logo animation
-    await Future.delayed(const Duration(milliseconds: 300));
-    _logoController.forward();
+    try {
+      // Start logo animation
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) _logoController.forward();
 
-    // Start text animation
-    await Future.delayed(const Duration(milliseconds: 800));
-    _textController.forward();
+      // Start text animation
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted) _textController.forward();
 
-    // Navigate to login after splash
-    await Future.delayed(const Duration(milliseconds: 2500));
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/login');
+      // Navigate to login after splash
+      await Future.delayed(const Duration(milliseconds: 2500));
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      // Handle any animation errors silently
     }
   }
 
   @override
   void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
+    // Stop and dispose animations safely
+    try {
+      _logoController.stop();
+      _logoController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
+    try {
+      _textController.stop();
+      _textController.dispose();
+    } catch (e) {
+      // Ignore disposal errors
+    }
+    
     super.dispose();
   }
 

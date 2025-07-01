@@ -219,9 +219,8 @@ class _LoginFormState extends State<LoginForm> {
     
     try {
       final request = LoginRequest(
-        email: _emailController.text.trim(),
+        username: _emailController.text.trim(),
         password: _passwordController.text,
-        rememberMe: _rememberMe,
       );
       
       final response = await _authRepository.login(request);
@@ -230,7 +229,7 @@ class _LoginFormState extends State<LoginForm> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message),
+              content: Text('Đăng nhập thành công!'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
@@ -241,7 +240,7 @@ class _LoginFormState extends State<LoginForm> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message),
+              content: Text(response.error ?? 'Đăng nhập thất bại'),
               backgroundColor: Theme.of(context).colorScheme.error,
               behavior: SnackBarBehavior.floating,
             ),
@@ -275,15 +274,15 @@ class _LoginFormState extends State<LoginForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Email field với glass effect
+          // Username field với glass effect
           _buildGlassTextField(
             controller: _emailController,
-            labelText: 'Email',
-            hintText: 'Nhập địa chỉ email của bạn',
-            prefixIcon: TablerIcons.mail,
-            keyboardType: TextInputType.emailAddress,
+            labelText: 'Tên đăng nhập',
+            hintText: 'Nhập tên đăng nhập của bạn',
+            prefixIcon: TablerIcons.user,
+            keyboardType: TextInputType.text,
             textInputAction: TextInputAction.next,
-            validator: (value) => _authRepository.validateEmail(value ?? ''),
+            validator: (value) => _authRepository.validateUsername(value ?? ''),
           ),
           
           const SizedBox(height: 20),

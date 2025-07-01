@@ -1,62 +1,73 @@
-/// Model cho dữ liệu đăng nhập
+/// Model cho dữ liệu đăng nhập theo API spec
 class LoginRequest {
-  final String email;
+  final String username;
   final String password;
-  final bool rememberMe;
 
   const LoginRequest({
-    required this.email,
+    required this.username,
     required this.password,
-    this.rememberMe = false,
   });
+
+  /// Validation theo API spec
+  String? get usernameError {
+    if (username.isEmpty) return 'Tên đăng nhập không được để trống';
+    if (username.length < 3) return 'Tên đăng nhập phải có ít nhất 3 ký tự';
+    if (username.length > 50) return 'Tên đăng nhập không được vượt quá 50 ký tự';
+    return null;
+  }
+
+  String? get passwordError {
+    if (password.isEmpty) return 'Mật khẩu không được để trống';
+    if (password.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
+    if (password.length > 100) return 'Mật khẩu không được vượt quá 100 ký tự';
+    return null;
+  }
+
+  /// Kiểm tra dữ liệu hợp lệ
+  bool get isValid => usernameError == null && passwordError == null;
 
   /// Convert thành Map để gửi API
   Map<String, dynamic> toJson() {
     return {
-      'email': email,
+      'username': username,
       'password': password,
-      'remember_me': rememberMe,
     };
   }
 
   /// Tạo instance từ Map
   factory LoginRequest.fromJson(Map<String, dynamic> json) {
     return LoginRequest(
-      email: json['email'] ?? '',
+      username: json['username'] ?? '',
       password: json['password'] ?? '',
-      rememberMe: json['remember_me'] ?? false,
     );
   }
 
   /// Copy với thông tin mới
   LoginRequest copyWith({
-    String? email,
+    String? username,
     String? password,
-    bool? rememberMe,
   }) {
     return LoginRequest(
-      email: email ?? this.email,
+      username: username ?? this.username,
       password: password ?? this.password,
-      rememberMe: rememberMe ?? this.rememberMe,
     );
   }
 
   @override
   String toString() {
-    return 'LoginRequest(email: $email, rememberMe: $rememberMe)';
+    return 'LoginRequest(username: $username)';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is LoginRequest &&
-        other.email == email &&
-        other.password == password &&
-        other.rememberMe == rememberMe;
+        other.username == username &&
+        other.password == password;
   }
 
   @override
   int get hashCode {
-    return Object.hash(email, password, rememberMe);
+    return Object.hash(username, password);
   }
 } 

@@ -12,6 +12,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
 import '../../features/notifications/data/models/notification_item.dart';
 import '../../features/notifications/data/repositories/local_notification_repository.dart';
+import '../shared_exports.dart';
 import 'background_message_handler.dart';
 
 class FirebaseService {
@@ -565,7 +566,7 @@ class FirebaseService {
       ));
 
       // Set default values
-      await _remoteConfig.setDefaults(_getDefaultConfigValues());
+      await _remoteConfig.setDefaults(RemoteConfigKeys.defaultValues);
 
       // Fetch and activate
       await _remoteConfig.fetchAndActivate();
@@ -581,46 +582,7 @@ class FirebaseService {
     }
   }
 
-  /// Get default config values
-  Map<String, dynamic> _getDefaultConfigValues() {
-    return {
-      // App configuration
-      'app_version_required': '1.0.0',
-      'maintenance_mode': false,
-      'maintenance_message': 'Ứng dụng đang được bảo trì. Vui lòng thử lại sau.',
-      
-      // Feature flags
-      'enable_biometric_login': true,
-      'enable_offline_mode': false,
-      'enable_dark_theme': true,
-      'enable_push_notifications': true,
-      'enable_location_tracking': true,
-      
-      // UI configuration
-      'max_attendance_distance': 100, // meters
-      'auto_check_out_hours': 8,
-      'break_time_minutes': 60,
-      
-      // API configuration
-      'api_timeout_seconds': 30,
-      'max_retry_attempts': 3,
-      'cache_duration_hours': 24,
-      
-      // API endpoints
-      'backend_api_url': 'http:/192.168.2.62:8097',
-      'data_api_url': 'http://192.168.2.62:3300',
-      
-      // Notification settings
-      'notification_quiet_hours_start': 22,
-      'notification_quiet_hours_end': 6,
-      'max_daily_notifications': 10,
-      
-      // Training configuration
-      'training_session_duration': 30, // minutes
-      'enable_training_reminders': true,
-      'training_progress_sync_interval': 300, // seconds
-    };
-  }
+
 
   // ============== IN-APP MESSAGING METHODS ==============
 
@@ -759,7 +721,7 @@ class FirebaseService {
   /// Check if app version is supported
   bool isAppVersionSupported(String currentVersion) {
     try {
-      final requiredVersion = getConfigString('app_version_required');
+      final requiredVersion = getConfigString(RemoteConfigKeys.appVersionRequired);
       // Simple version comparison (you might want to use a proper version comparison library)
       return _compareVersions(currentVersion, requiredVersion) >= 0;
     } catch (e) {
@@ -769,12 +731,12 @@ class FirebaseService {
 
   /// Check if app is in maintenance mode
   bool isMaintenanceMode() {
-    return getConfigBool('maintenance_mode');
+    return getConfigBool(RemoteConfigKeys.maintenanceMode);
   }
 
   /// Get maintenance message
   String getMaintenanceMessage() {
-    return getConfigString('maintenance_message', 
+    return getConfigString(RemoteConfigKeys.maintenanceMessage, 
         defaultValue: 'Ứng dụng đang được bảo trì. Vui lòng thử lại sau.');
   }
 
@@ -782,72 +744,72 @@ class FirebaseService {
 
   /// Check if biometric login is enabled
   bool isBiometricLoginEnabled() {
-    return getConfigBool('enable_biometric_login', defaultValue: true);
+    return getConfigBool(RemoteConfigKeys.enableBiometricLogin, defaultValue: true);
   }
 
   /// Check if offline mode is enabled
   bool isOfflineModeEnabled() {
-    return getConfigBool('enable_offline_mode', defaultValue: false);
+    return getConfigBool(RemoteConfigKeys.enableOfflineMode, defaultValue: false);
   }
 
   /// Check if dark theme is enabled
   bool isDarkThemeEnabled() {
-    return getConfigBool('enable_dark_theme', defaultValue: true);
+    return getConfigBool(RemoteConfigKeys.enableDarkTheme, defaultValue: true);
   }
 
   /// Check if push notifications are enabled
   bool isPushNotificationsEnabled() {
-    return getConfigBool('enable_push_notifications', defaultValue: true);
+    return getConfigBool(RemoteConfigKeys.enablePushNotifications, defaultValue: true);
   }
 
   /// Check if location tracking is enabled
   bool isLocationTrackingEnabled() {
-    return getConfigBool('enable_location_tracking', defaultValue: true);
+    return getConfigBool(RemoteConfigKeys.enableLocationTracking, defaultValue: true);
   }
 
   // ============== UI CONFIGURATION ==============
 
   /// Get maximum attendance distance in meters
   int getMaxAttendanceDistance() {
-    return getConfigInt('max_attendance_distance', defaultValue: 100);
+    return getConfigInt(RemoteConfigKeys.maxAttendanceDistance, defaultValue: 100);
   }
 
   /// Get auto check out hours
   int getAutoCheckOutHours() {
-    return getConfigInt('auto_check_out_hours', defaultValue: 8);
+    return getConfigInt(RemoteConfigKeys.autoCheckOutHours, defaultValue: 8);
   }
 
   /// Get break time in minutes
   int getBreakTimeMinutes() {
-    return getConfigInt('break_time_minutes', defaultValue: 60);
+    return getConfigInt(RemoteConfigKeys.breakTimeMinutes, defaultValue: 60);
   }
 
   // ============== API CONFIGURATION ==============
 
   /// Get API timeout in seconds
   int getApiTimeoutSeconds() {
-    return getConfigInt('api_timeout_seconds', defaultValue: 30);
+    return getConfigInt(RemoteConfigKeys.apiTimeoutSeconds, defaultValue: 30);
   }
 
   /// Get maximum retry attempts
   int getMaxRetryAttempts() {
-    return getConfigInt('max_retry_attempts', defaultValue: 3);
+    return getConfigInt(RemoteConfigKeys.maxRetryAttempts, defaultValue: 3);
   }
 
   /// Get cache duration in hours
   int getCacheDurationHours() {
-    return getConfigInt('cache_duration_hours', defaultValue: 24);
+    return getConfigInt(RemoteConfigKeys.cacheDurationHours, defaultValue: 24);
   }
 
   /// Get backend API URL (Spring Boot backend)
   String getBackendApiUrl() {
-    return getConfigString('backend_api_url', 
+    return getConfigString(RemoteConfigKeys.backendApiUrl, 
         defaultValue: 'https://your-backend.com/api');
   }
 
   /// Get data API URL (postgREST)
   String getDataApiUrl() {
-    return getConfigString('data_api_url', 
+    return getConfigString(RemoteConfigKeys.dataApiUrl, 
         defaultValue: 'https://your-postgrest.com');
   }
 
@@ -855,34 +817,34 @@ class FirebaseService {
 
   /// Get notification quiet hours start
   int getNotificationQuietHoursStart() {
-    return getConfigInt('notification_quiet_hours_start', defaultValue: 22);
+    return getConfigInt(RemoteConfigKeys.notificationQuietHoursStart, defaultValue: 22);
   }
 
   /// Get notification quiet hours end
   int getNotificationQuietHoursEnd() {
-    return getConfigInt('notification_quiet_hours_end', defaultValue: 6);
+    return getConfigInt(RemoteConfigKeys.notificationQuietHoursEnd, defaultValue: 6);
   }
 
   /// Get maximum daily notifications
   int getMaxDailyNotifications() {
-    return getConfigInt('max_daily_notifications', defaultValue: 10);
+    return getConfigInt(RemoteConfigKeys.maxDailyNotifications, defaultValue: 10);
   }
 
   // ============== TRAINING CONFIGURATION ==============
 
   /// Get training session duration in minutes
   int getTrainingSessionDuration() {
-    return getConfigInt('training_session_duration', defaultValue: 30);
+    return getConfigInt(RemoteConfigKeys.trainingSessionDuration, defaultValue: 30);
   }
 
   /// Check if training reminders are enabled
   bool isTrainingRemindersEnabled() {
-    return getConfigBool('enable_training_reminders', defaultValue: true);
+    return getConfigBool(RemoteConfigKeys.enableTrainingReminders, defaultValue: true);
   }
 
   /// Get training progress sync interval in seconds
   int getTrainingProgressSyncInterval() {
-    return getConfigInt('training_progress_sync_interval', defaultValue: 300);
+    return getConfigInt(RemoteConfigKeys.trainingProgressSyncInterval, defaultValue: 300);
   }
 
   // ============== UTILITY METHODS ==============

@@ -1,29 +1,57 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
+import 'device_info_service.dart';
+import 'token_manager.dart';
+import 'firebase_service.dart';
+import '../constants/remote_config_keys.dart';
+import '../../features/auth/data/models/auth_response.dart';
+import '../../features/auth/data/models/refresh_token_request.dart';
 
-/// Service quản lý tất cả các API calls sử dụng Dio
+/// Enhanced API Service với interceptors cho authentication và device headers
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
   late final Dio _dio;
+  late final DeviceInfoService _deviceInfoService;
+  late final TokenManager _tokenManager;
   final CancelToken _cancelToken = CancelToken();
   final logger = Logger();
-  /// Khởi tạo Dio với cấu hình cơ bản
-  void initialize({
-    String baseUrl = 'https://api.personaai.com', // Thay đổi theo API thực tế
-    Duration connectTimeout = const Duration(seconds: 10),
-    Duration receiveTimeout = const Duration(seconds: 15),
-    Duration sendTimeout = const Duration(seconds: 5),
-  }) {
+  
+  // State management
+  bool _isRefreshing = false;
+  final List<Completer<Response>> _pendingRequests = [];
+  String? _currentMode; // 'backend' or 'data'
+  /// Initialize ApiService với enhanced configuration
+  Future<void> initialize({
+    String? baseUrl,
+    Duration? connectTimeout,
+    Duration? receiveTimeout,
+    Duration? sendTimeout,
+  }) async {
+    // Initialize dependencies
+    _deviceInfoService = DeviceInfoService();
+    _tokenManager = TokenManager();
+    
+    // Get config from Firebase Remote Config
+    final backendUrl = FirebaseService().getConfigString(
+      RemoteConfigKeys.backendApiUrl, 
+      defaultValue: 'http://192.168.2.62:8097'
+    );
+    final timeoutSeconds = FirebaseService().getConfigInt(
+      RemoteConfigKeys.apiTimeoutSeconds, 
+      defaultValue: 30
+    );
+
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: connectTimeout,
-        receiveTimeout: receiveTimeout,
-        sendTimeout: sendTimeout,
+        baseUrl: baseUrl ?? backendUrl,
+        connectTimeout: connectTimeout ?? Duration(seconds: timeoutSeconds),
+        receiveTimeout: receiveTimeout ?? Duration(seconds: timeoutSeconds + 15),
+        sendTimeout: sendTimeout ?? Duration(seconds: timeoutSeconds - 5),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -39,55 +67,257 @@ class ApiService {
     );
 
     _setupInterceptors();
+    
+    if (kDebugMode) {
+      logger.i('ApiService initialized with base URL: ${_dio.options.baseUrl}');
+    }
   }
 
-  /// Thiết lập các interceptors
+  /// Setup 4 interceptors theo thứ tự: Device Headers → Auth Token → Error Handling → Logging
   void _setupInterceptors() {
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          if (kDebugMode) {
-            logger.i('🚀 REQUEST: ${options.method} ${options.uri}');
-            logger.i('📝 Headers: ${options.headers}');
-            if (options.data != null) {
-              logger.i('📦 Data: ${options.data}');
-            }
-          }
-          return handler.next(options);
-        },
-        onResponse: (response, handler) {
-          if (kDebugMode) {
-            logger.i('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.uri}');
-            logger.i('📄 Data: ${response.data}');
-          }
-          return handler.next(response);
-        },
-        onError: (error, handler) {
-          if (kDebugMode) {
-            logger.e('❌ ERROR: ${error.message}');
-            logger.e('🔍 Type: ${error.type}');
-            if (error.response != null) {
-              logger.e('📊 Status: ${error.response?.statusCode}');
-              logger.e('📄 Data: ${error.response?.data}');
-            }
-          }
-          return handler.next(error);
-        },
-      ),
-    );
-
-    // Thêm LogInterceptor cho debug mode
+    // 1. Device Headers Interceptor (always first)
+    _dio.interceptors.add(_createDeviceHeadersInterceptor());
+    
+    // 2. Auth Token Interceptor
+    _dio.interceptors.add(_createAuthTokenInterceptor());
+    
+    // 3. Error Handling Interceptor (401 retry)
+    _dio.interceptors.add(_createErrorHandlingInterceptor());
+    
+    // 4. Logging Interceptor (debug only, always last)
     if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: true,
-          responseBody: true,
-          requestHeader: true,
-          responseHeader: false,
-          error: true,
-          logPrint: (obj) => logger.i(obj.toString()),
-        ),
-      );
+      _dio.interceptors.add(_createLoggingInterceptor());
+    }
+  }
+
+  /// 1. Device Headers Interceptor
+  Interceptor _createDeviceHeadersInterceptor() {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        try {
+          // Add device headers to all requests
+          final deviceHeaders = await _deviceInfoService.getAllHeaders();
+          options.headers.addAll(deviceHeaders);
+          
+          if (kDebugMode && deviceHeaders.isNotEmpty) {
+            logger.d('Added ${deviceHeaders.length} device headers');
+          }
+        } catch (e) {
+          // Don't block request if device headers fail
+          logger.w('Failed to add device headers: $e');
+        }
+        
+        return handler.next(options);
+      },
+    );
+  }
+
+  /// 2. Auth Token Interceptor
+  Interceptor _createAuthTokenInterceptor() {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        try {
+          // Only add auth token for data API calls (not auth API calls)
+          if (_currentMode == 'data') {
+            final token = await _tokenManager.getAccessToken();
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          }
+        } catch (e) {
+          logger.w('Failed to add auth token: $e');
+        }
+        
+        return handler.next(options);
+      },
+    );
+  }
+
+  /// 3. Error Handling Interceptor (401 retry with refresh)
+  Interceptor _createErrorHandlingInterceptor() {
+    return InterceptorsWrapper(
+      onError: (error, handler) async {
+        // Only handle 401 errors for data API calls
+        if (error.response?.statusCode == 401 && _currentMode == 'data') {
+          if (!_isRefreshing) {
+            await _handle401Error(error, handler);
+            return;
+          } else {
+            // If already refreshing, queue this request
+            await _queueRequest(error, handler);
+            return;
+          }
+        }
+        
+        return handler.next(error);
+      },
+    );
+  }
+
+  /// 4. Logging Interceptor (debug only)
+  Interceptor _createLoggingInterceptor() {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) {
+        logger.i('🚀 ${options.method} ${options.uri}');
+        logger.d('📝 Headers: ${options.headers}');
+        if (options.data != null) {
+          logger.d('📦 Data: ${options.data}');
+        }
+        return handler.next(options);
+      },
+      onResponse: (response, handler) {
+        logger.i('✅ ${response.statusCode} ${response.requestOptions.uri}');
+        logger.d('📄 Response: ${response.data}');
+        return handler.next(response);
+      },
+      onError: (error, handler) {
+        logger.e('❌ ${error.response?.statusCode} ${error.requestOptions.uri}');
+        logger.e('🔍 Error: ${error.message}');
+        if (error.response?.data != null) {
+          logger.e('📄 Error Data: ${error.response?.data}');
+        }
+        return handler.next(error);
+      },
+    );
+  }
+
+  /// Handle 401 errors with token refresh
+  Future<void> _handle401Error(DioException error, ErrorInterceptorHandler handler) async {
+    try {
+      _isRefreshing = true;
+      
+      // Try to refresh token
+      final refreshToken = await _tokenManager.getRefreshToken();
+      if (refreshToken == null) {
+        // No refresh token, redirect to login
+        _clearAuthAndRedirect();
+        return handler.next(error);
+      }
+      
+      // Switch to backend API mode to refresh token
+      final originalMode = _currentMode;
+      await switchToBackendApi();
+      
+      try {
+        // Call refresh token endpoint
+        final response = await _dio.post('/auth/refresh', data: {
+          'refreshToken': refreshToken,
+        });
+        
+        if (response.statusCode == 200) {
+          final authResponse = AuthResponse.fromJson(response.data);
+          await _tokenManager.saveTokens(authResponse);
+          
+          // Switch back to original mode
+          if (originalMode == 'data') {
+            await switchToDataApi();
+          }
+          
+          // Retry the original request
+          final requestOptions = error.requestOptions;
+          final token = await _tokenManager.getAccessToken();
+          if (token != null) {
+            requestOptions.headers['Authorization'] = 'Bearer $token';
+          }
+          
+          final retryResponse = await _dio.fetch(requestOptions);
+          return handler.resolve(retryResponse);
+        } else {
+          throw Exception('Token refresh failed: ${response.statusCode}');
+        }
+      } catch (refreshError) {
+        logger.e('Token refresh failed: $refreshError');
+        _clearAuthAndRedirect();
+        return handler.next(error);
+      }
+    } catch (e) {
+      logger.e('Error handling 401: $e');
+      return handler.next(error);
+    } finally {
+      _isRefreshing = false;
+      _processPendingRequests();
+    }
+  }
+
+  /// Queue request while token is being refreshed
+  Future<void> _queueRequest(DioException error, ErrorInterceptorHandler handler) async {
+    final completer = Completer<Response>();
+    _pendingRequests.add(completer);
+    
+    try {
+      final response = await completer.future;
+      return handler.resolve(response);
+    } catch (e) {
+      return handler.next(error);
+    }
+  }
+
+  /// Process pending requests after token refresh
+  void _processPendingRequests() async {
+    final token = await _tokenManager.getAccessToken();
+    
+    for (final completer in _pendingRequests) {
+      try {
+        // This would need the original request options
+        // For now, we'll just complete with an error
+        completer.completeError(DioException(
+          requestOptions: RequestOptions(path: ''),
+          message: 'Request failed after token refresh',
+        ));
+      } catch (e) {
+        completer.completeError(e);
+      }
+    }
+    
+    _pendingRequests.clear();
+  }
+
+  /// Clear authentication and redirect to login
+  void _clearAuthAndRedirect() async {
+    try {
+      await _tokenManager.clearTokens();
+      // TODO: Navigate to login page
+      logger.i('Authentication cleared, should redirect to login');
+    } catch (e) {
+      logger.e('Error clearing auth: $e');
+    }
+  }
+
+  /// Switch to backend API mode
+  Future<void> switchToBackendApi() async {
+    final backendUrl = FirebaseService().getConfigString(
+      RemoteConfigKeys.backendApiUrl,
+      defaultValue: 'http://192.168.2.62:8097'
+    );
+    
+    _dio.options.baseUrl = backendUrl;
+    _currentMode = 'backend';
+    
+    if (kDebugMode) {
+      logger.i('Switched to backend API: $backendUrl');
+    }
+  }
+
+  /// Switch to data API mode
+  Future<void> switchToDataApi() async {
+    final dataUrl = FirebaseService().getConfigString(
+      RemoteConfigKeys.dataApiUrl,
+      defaultValue: 'http://192.168.2.62:3300'
+    );
+    
+    _dio.options.baseUrl = dataUrl;
+    _currentMode = 'data';
+    
+    if (kDebugMode) {
+      logger.i('Switched to data API: $dataUrl');
+    }
+  }
+
+  /// Set base URL manually
+  void setBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+    if (kDebugMode) {
+      logger.i('Base URL set to: $url');
     }
   }
 

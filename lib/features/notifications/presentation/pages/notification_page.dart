@@ -11,7 +11,7 @@ import '../../data/models/notification_item.dart';
 import '../../data/models/notification_filter.dart';
 import '../../data/repositories/local_notification_repository.dart';
 import '../bloc/notification_bloc.dart';
-import '../../../../shared/services/firebase_service.dart';
+import '../../../../shared/services/webview_helper.dart';
 import '../../../../shared/shared_exports.dart';
 
 /// Enhanced notification page với BLoC state management

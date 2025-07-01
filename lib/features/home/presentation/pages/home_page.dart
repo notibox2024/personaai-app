@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 // Models
 import '../../data/models/employee_info.dart';
@@ -12,6 +13,9 @@ import '../../data/models/upcoming_event.dart';
 import '../../../../shared/shared_exports.dart';
 import 'package:geolocator/geolocator.dart';
 
+// Auth Integration
+import '../../../auth/auth_exports.dart';
+
 // Widgets
 import '../widgets/scrollable_header.dart';
 import '../widgets/welcome_banner.dart';
@@ -20,7 +24,7 @@ import '../widgets/dashboard_cards/monthly_stats_card.dart';
 import '../widgets/dashboard_cards/notifications_card.dart';
 import '../widgets/upcoming_events_card.dart';
 
-/// Trang chủ chính của ứng dụng
+/// Trang chủ chính của ứng dụng với auth integration
 class HomePage extends StatefulWidget {
   final VoidCallback? onThemeToggle;
   
@@ -70,92 +74,136 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         statusBarIconBrightness: Brightness.light, // Icons màu trắng cho header sẫm
         statusBarBrightness: Brightness.dark,      // Cho iOS
       ),
-      child: Scaffold(
-      // Sử dụng surfaceContainerLowest làm background chính để tạo contrast với cards (surface)
-      // Light theme: surfaceContainerLowest (~#FAFAFA) vs surface (#FFFFFF)  
-      // Dark theme: surfaceContainerLowest (~#0F0F0F) vs surface (#1E1E1E)
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      body: RefreshIndicator(
-        onRefresh: _onRefresh,
-        color: Theme.of(context).colorScheme.primary,
-        child: CustomScrollView(
-          controller: _scrollController,
-          slivers: [
-            // Scrollable Header
-            SliverToBoxAdapter(
-              child: ScrollableHeader(
-                employee: _getMockEmployeeInfo(),
-                onThemeToggle: widget.onThemeToggle,
+      child: BlocConsumer<AuthBloc, AuthBlocState>(
+        listener: (context, state) {
+          // Handle auth state changes
+          if (state is AuthUnauthenticated || state is AuthTokenExpired) {
+            // Navigate to login page
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/login',
+              (route) => false,
+            );
+          }
+        },
+        builder: (context, authState) {
+          // Show loading if auth is not ready
+          if (authState is AuthInitial || authState is AuthLoading) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
               ),
-            ),
-
-            // Welcome Banner with Weather
-            SliverToBoxAdapter(
-              child: WelcomeBanner(
-                employeeName: _getMockEmployeeInfo().fullName,
-                currentPosition: _currentPosition,
-                isLocationLoading: _isLocationLoading,
-                onLocationRefresh: _refreshLocation,
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-            // Dashboard Cards Section
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Thông tin tổng quan',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+            );
+          }
+          
+          // Get user info from auth state
+          final user = authState is AuthAuthenticated ? authState.user : null;
+          
+          return Scaffold(
+            // Sử dụng surfaceContainerLowest làm background chính để tạo contrast với cards (surface)
+            // Light theme: surfaceContainerLowest (~#FAFAFA) vs surface (#FFFFFF)  
+            // Dark theme: surfaceContainerLowest (~#0F0F0F) vs surface (#1E1E1E)
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+            body: RefreshIndicator(
+              onRefresh: () => _onRefresh(context),
+              color: Theme.of(context).colorScheme.primary,
+              child: CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  // Scrollable Header with real user info
+                  SliverToBoxAdapter(
+                    child: ScrollableHeader(
+                      employee: _getEmployeeInfoFromUser(user),
+                      onThemeToggle: widget.onThemeToggle,
+                    ),
                   ),
-                ),
+
+                  // Welcome Banner with Weather
+                  SliverToBoxAdapter(
+                    child: WelcomeBanner(
+                      employeeName: user?.displayName ?? 'Người dùng',
+                      currentPosition: _currentPosition,
+                      isLocationLoading: _isLocationLoading,
+                      onLocationRefresh: _refreshLocation,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                  // Dashboard Cards Section
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Thông tin tổng quan',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                  // Attendance Card
+                  SliverToBoxAdapter(
+                    child: AttendanceCard(
+                      attendanceInfo: _getMockAttendanceInfo(),
+                      onTap: () => _handleAttendanceDetailTap(),
+                    ),
+                  ),
+
+                  // Monthly Stats Card
+                  SliverToBoxAdapter(
+                    child: MonthlyStatsCard(
+                      monthlyStats: _getMockMonthlyStats(),
+                      onTap: () => _handleMonthlyStatsTap(),
+                    ),
+                  ),
+
+                  // Notifications Card
+                  SliverToBoxAdapter(
+                    child: NotificationsCard(
+                      notifications: _getMockNotifications(),
+                      onSeeAllTap: () => _handleSeeAllNotificationsTap(),
+                      onNotificationTap: (notification) => _handleNotificationItemTap(notification),
+                    ),
+                  ),
+
+                  // Upcoming Events Card
+                  SliverToBoxAdapter(
+                    child: UpcomingEventsCard(
+                      events: _getMockUpcomingEvents(),
+                      onSeeAllTap: () => _handleSeeAllEventsTap(),
+                      onEventTap: (event) => _handleEventTap(event),
+                    ),
+                  ),
+
+                  // Bottom spacing
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
               ),
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // Attendance Card
-            SliverToBoxAdapter(
-              child: AttendanceCard(
-                attendanceInfo: _getMockAttendanceInfo(),
-                onTap: () => _handleAttendanceDetailTap(),
-              ),
-            ),
-
-            // Monthly Stats Card
-            SliverToBoxAdapter(
-              child: MonthlyStatsCard(
-                monthlyStats: _getMockMonthlyStats(),
-                onTap: () => _handleMonthlyStatsTap(),
-              ),
-            ),
-
-            // Notifications Card
-            SliverToBoxAdapter(
-              child: NotificationsCard(
-                notifications: _getMockNotifications(),
-                onSeeAllTap: () => _handleSeeAllNotificationsTap(),
-                onNotificationTap: (notification) => _handleNotificationItemTap(notification),
-              ),
-            ),
-
-            // Upcoming Events Card
-            SliverToBoxAdapter(
-              child: UpcomingEventsCard(
-                events: _getMockUpcomingEvents(),
-                onSeeAllTap: () => _handleSeeAllEventsTap(),
-                onEventTap: (event) => _handleEventTap(event),
-              ),
-            ),
-
-            // Bottom spacing
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
+          );
+        },
       ),
-    ));
+    );
+  }
+
+  // =============== AUTH INTEGRATION METHODS ===============
+
+  /// Convert UserSession to EmployeeInfo for backward compatibility
+  EmployeeInfo _getEmployeeInfoFromUser(UserSession? user) {
+    if (user == null) {
+      return _getMockEmployeeInfo(); // Fallback to mock data
+    }
+    
+    return EmployeeInfo(
+      id: user.userId,
+      fullName: user.displayName ?? 'Người dùng',
+      position: 'Nhân viên', // Default position
+      department: 'IT', // Default department
+      avatarUrl: user.avatar ?? '',
+    );
   }
 
   // =============== LOCATION METHODS ===============
@@ -256,18 +304,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   // =============== EVENT HANDLERS ===============
 
-  Future<void> _onRefresh() async {
+  Future<void> _onRefresh(BuildContext context) async {
     await Future.wait([
       _refreshLocation(),
       Future.delayed(const Duration(seconds: 1)), // Simulate other data refresh
     ]);
   }
-
-
-
-
-
-
 
   void _handleAttendanceDetailTap() {
     // TODO: Navigate to attendance detail page
