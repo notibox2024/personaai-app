@@ -444,9 +444,6 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
               ),
               
               const SizedBox(height: 24),
-              
-              // Demo credentials info với glass effect
-              _buildDemoCredentialsSection(),
             ],
           ),
         );
@@ -562,80 +559,5 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
     );
   }
 
-  Widget _buildDemoCredentialsSection() {
-    final theme = Theme.of(context);
-    
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0 : 0),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.25 : 0.2),
-              width: 0.5,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    TablerIcons.info_circle,
-                    color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.8 : 0.7),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Thông tin đăng nhập demo',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.9 : 0.8),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Demo credentials
-              _buildDemoCredential('demo', '123456'),
-              _buildDemoCredential('admin', 'admin123'),
-              _buildDemoCredential('test', 'test123'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildDemoCredential(String username, String password) {
-    final theme = Theme.of(context);
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(
-            TablerIcons.user,
-            color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.7 : 0.6),
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$username / $password',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withValues(alpha: theme.brightness == Brightness.light ? 0.8 : 0.7),
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 } 

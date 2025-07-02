@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/personal_info_card.dart';
 import '../widgets/work_info_card.dart';
 import '../widgets/achievements_card.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../../data/models/user_profile.dart';
+import '../../../auth/presentation/widgets/logout_button.dart';
+import '../../../../shared/widgets/custom_card.dart';
 
 /// Trang cá nhân chính
 class ProfilePage extends StatefulWidget {
@@ -110,6 +113,42 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
 
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+            // Logout Section
+            SliverToBoxAdapter(
+              child: CustomCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          TablerIcons.shield_lock,
+                          color: theme.colorScheme.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Bảo mật',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: LogoutButton(
+                        onLogoutSuccess: _handleLogoutSuccess,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             // Bottom spacing with safe area
             SliverToBoxAdapter(
               child: SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
@@ -188,6 +227,14 @@ class _ProfilePageState extends State<ProfilePage> {
     // TODO: Implement emergency contact
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Mở danh bạ khẩn cấp')),
+    );
+  }
+
+  void _handleLogoutSuccess() {
+    // Navigate to login page or main navigation
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/login',
+      (route) => false,
     );
   }
 
