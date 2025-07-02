@@ -294,7 +294,6 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
       builder: (context, state) {
         final isLoading = state is AuthLoading || state is AuthRefreshing;
         final hasError = state is AuthError;
-        final isTokenNearExpiry = state is AuthAuthenticated && state.isTokenNearExpiry;
         
         return Form(
           key: _formKey,
@@ -303,9 +302,6 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
             children: [
               // Error banner
               if (hasError) _buildErrorBanner((state as AuthError).message),
-              
-              // Token expiry warning
-              if (isTokenNearExpiry) _buildTokenExpiryWarning(),
               
               // Username field
               _buildGlassTextField(
@@ -510,54 +506,7 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
     );
   }
 
-  Widget _buildTokenExpiryWarning() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    
-    // Cải thiện contrast với màu đậm hơn để dễ đọc trên nền cam
-    final textColor = isDark 
-        ? Colors.orange.shade100  // Rất sáng cho dark theme
-        : Colors.orange.shade900; // Rất tối cho light theme để contrast cao với nền cam
-        
-    final iconColor = isDark 
-        ? Colors.orange.shade50   // Rất sáng cho dark theme
-        : Colors.orange.shade800; // Tối cho light theme
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: isDark ? 0.2 : 0.12), // Đậm background hơn để contrast
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: isDark ? 0.5 : 0.35), // Border đậm hơn
-          width: 1.5, // Border dày hơn để nổi bật
-        ),
-        // Bỏ shadow theo yêu cầu
-      ),
-      child: Row(
-        children: [
-          Icon(
-            TablerIcons.clock_exclamation,
-            color: iconColor,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Phiên đăng nhập sắp hết hạn. Đang tự động làm mới...',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w700, // Font weight cao hơn để contrast tốt
-                // Bỏ text shadow theo yêu cầu
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
 
 } 

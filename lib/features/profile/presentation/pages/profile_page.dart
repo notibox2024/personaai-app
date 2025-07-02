@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/personal_info_card.dart';
@@ -8,6 +9,7 @@ import '../widgets/achievements_card.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../../data/models/user_profile.dart';
 import '../../../auth/presentation/widgets/logout_button.dart';
+import '../../../auth/presentation/widgets/fcm_token_debug_widget.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
 /// Trang cá nhân chính
@@ -114,6 +116,15 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+            // FCM Token Debug Widget (Development only)
+            if (kDebugMode)
+              const SliverToBoxAdapter(
+                child: FcmTokenDebugWidget(),
+              ),
+
+            if (kDebugMode)
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // Logout Section
             SliverToBoxAdapter(

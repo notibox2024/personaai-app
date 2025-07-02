@@ -7,3 +7,4 @@ alwaysApply: true
 - tuân thủ theme của dự án
 - giao diện hỗ trợ dark, light theme
 - tránh các `deprecated API`
+- Không viết các tài liệu nếu như chưa được yêu cầu

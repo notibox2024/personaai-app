@@ -10,6 +10,7 @@ import 'app_lifecycle_service.dart';
 import 'weather_service.dart';
 import 'notification_demo_service.dart';
 import 'navigation_service.dart';
+import '../../features/auth/data/services/fcm_token_service.dart';
 
 /// Global services initializer và coordinator
 /// Setup các services và wire up callbacks giữa chúng
@@ -77,7 +78,11 @@ class GlobalServices {
       _handleAuthRequired();
     });
     
+    // Setup FCM token refresh listener
+    FcmTokenService().setupTokenRefreshListener();
+    
     logger.d('✓ Service callbacks configured');
+    logger.d('✓ FCM token refresh listener setup');
   }
 
   /// Handle khi ApiService require authentication

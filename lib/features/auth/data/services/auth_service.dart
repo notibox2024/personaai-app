@@ -40,19 +40,7 @@ class AuthService implements AuthProvider {
   @override
   UserSession? get currentUser => _currentState.user;
 
-  @override
-  bool get isTokenNearExpiry {
-    // Note: TokenManager.shouldRefreshToken() is async, but AuthProvider interface requires sync
-    // We'll return false for now and handle token refresh in background
-    try {
-      // For sync implementation, we could cache the result or use a different approach
-      // For now, return false and let background refresh handle the timing
-      return false;
-    } catch (e) {
-      logger.w('Error checking token expiry: $e');
-      return true; // Assume near expiry on error
-    }
-  }
+
 
   @override
   Future<bool> login(String username, String password) async {

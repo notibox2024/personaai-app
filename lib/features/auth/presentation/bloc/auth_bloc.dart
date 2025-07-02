@@ -66,15 +66,6 @@ class AuthClearError extends AuthEvent {
   const AuthClearError();
 }
 
-class AuthTokenNearExpiry extends AuthEvent {
-  final UserSession user;
-
-  const AuthTokenNearExpiry(this.user);
-
-  @override
-  List<Object?> get props => [user];
-}
-
 class AuthLoadSavedCredentials extends AuthEvent {
   const AuthLoadSavedCredentials();
 }
@@ -102,15 +93,13 @@ class AuthLoading extends AuthBlocState {
 
 class AuthAuthenticated extends AuthBlocState {
   final UserSession user;
-  final bool isTokenNearExpiry;
 
   const AuthAuthenticated({
     required this.user,
-    this.isTokenNearExpiry = false,
   });
 
   @override
-  List<Object?> get props => [user, isTokenNearExpiry];
+  List<Object?> get props => [user];
 }
 
 class AuthUnauthenticated extends AuthBlocState {
@@ -170,7 +159,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
   final logger = Logger();
   
   StreamSubscription<AuthStateData>? _authStateSubscription;
-  Timer? _tokenExpiryCheckTimer;
 
   AuthBloc({
     AuthService? authService,
@@ -186,7 +174,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     on<AuthValidateToken>(_onValidateToken);
     on<AuthStateChanged>(_onAuthStateChanged);
     on<AuthClearError>(_onClearError);
-    on<AuthTokenNearExpiry>(_onTokenNearExpiry);
     on<AuthLoadSavedCredentials>(_onLoadSavedCredentials);
     on<AuthAutoLogin>(_onAutoLogin);
   }
@@ -200,17 +187,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
       // Listen to auth state changes từ service đã initialized
       _startListeningToAuthChanges();
       
-      // Start token expiry monitoring
-      _startTokenExpiryMonitoring();
+      // Check if user is already authenticated
+      final currentAuthState = _authService.currentState;
       
-      // Get initial auth state
-      final currentState = _authService.currentState;
-      add(AuthStateChanged(currentState));
+      if (currentAuthState.state == AuthState.authenticated && currentAuthState.user != null) {
+        emit(AuthAuthenticated(user: currentAuthState.user!));
+        logger.i('User already authenticated: ${currentAuthState.user!.preferredDisplayName}');
+      } else {
+        emit(const AuthUnauthenticated());
+        logger.d('No authenticated user found');
+      }
       
-      logger.i('AuthBloc initialized');
     } catch (e) {
-      logger.e('AuthBloc initialization failed: $e');
-      emit(AuthError(message: 'Khởi tạo authentication thất bại: ${e.toString()}'));
+      logger.e('Error during auth initialization: $e');
+      emit(AuthError(message: 'Lỗi khởi tạo authentication: ${e.toString()}'));
     }
   }
 
@@ -220,29 +210,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
       emit(const AuthLoading());
       
       await _authService.loginWithRememberMe(
-        event.username, 
-        event.password, 
+        event.username,
+        event.password,
         event.rememberMe,
       );
       
       logger.i('Login attempt completed for user: ${event.username} (Remember me: ${event.rememberMe})');
+      
+      // State sẽ được update qua _onAuthStateChanged khi service stream emit
+      
     } catch (e) {
       logger.e('Login error: $e');
-      emit(AuthError(message: 'Đăng nhập thất bại: ${e.toString()}'));
+      emit(AuthError(message: e.toString()));
     }
   }
 
   /// Handle logout
   Future<void> _onLogout(AuthLogout event, Emitter<AuthBlocState> emit) async {
     try {
-      emit(AuthRefreshing(user: _getCurrentUser()));
-      
+      emit(const AuthLoading());
       await _authService.logout();
+      logger.i('User logged out successfully');
       
-      logger.i('Logout completed');
+      // State sẽ được update qua _onAuthStateChanged
+      
     } catch (e) {
       logger.e('Logout error: $e');
-      emit(AuthError(message: 'Đăng xuất thất bại: ${e.toString()}'));
+      emit(AuthError(message: 'Lỗi khi đăng xuất: ${e.toString()}'));
     }
   }
 
@@ -250,23 +244,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
   Future<void> _onRefreshToken(AuthRefreshToken event, Emitter<AuthBlocState> emit) async {
     try {
       final currentUser = _getCurrentUser();
-      if (currentUser == null) {
-        emit(const AuthUnauthenticated());
-        return;
-      }
-
       emit(AuthRefreshing(user: currentUser));
       
-      final success = await _authService.refreshToken();
+      await _authService.refreshToken();
+      logger.i('Token refresh completed');
       
-      if (success) {
-        logger.i('Token refresh successful');
-      } else {
-        logger.w('Token refresh failed - user will be logged out');
-      }
+      // State sẽ được update qua _onAuthStateChanged
+      
     } catch (e) {
       logger.e('Token refresh error: $e');
-      emit(AuthError(message: 'Làm mới token thất bại: ${e.toString()}'));
+      emit(AuthError(
+        message: 'Lỗi làm mới token: ${e.toString()}',
+        user: _getCurrentUser(),
+      ));
     }
   }
 
@@ -276,17 +266,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
       final currentUser = _getCurrentUser();
       emit(AuthRefreshing(user: currentUser));
       
-      final success = await _authService.forceRefreshToken();
+      await _authService.forceRefreshToken();
+      logger.i('Force refresh completed');
       
-      if (success) {
-        logger.i('Force token refresh successful');
-      } else {
-        logger.w('Force token refresh failed');
-        emit(AuthError(message: 'Làm mới token thất bại'));
-      }
+      // State sẽ được update qua _onAuthStateChanged
+      
     } catch (e) {
       logger.e('Force refresh error: $e');
-      emit(AuthError(message: 'Làm mới token thất bại: ${e.toString()}'));
+      emit(AuthError(
+        message: 'Lỗi force refresh: ${e.toString()}',
+        user: _getCurrentUser(),
+      ));
     }
   }
 
@@ -296,18 +286,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
       final isValid = await _authService.validateToken();
       
       if (!isValid) {
-        logger.w('Token validation failed - user will be logged out');
-        add(const AuthLogout());
+        logger.w('Token validation failed');
+        emit(const AuthUnauthenticated());
       } else {
-        logger.d('Token validation successful');
+        logger.d('Token validation passed');
+        final currentUser = _authService.currentUser;
+        if (currentUser != null) {
+          emit(AuthAuthenticated(user: currentUser));
+        }
       }
     } catch (e) {
       logger.e('Token validation error: $e');
-      emit(AuthError(message: 'Xác thực token thất bại: ${e.toString()}'));
+      emit(AuthError(message: 'Lỗi kiểm tra token: ${e.toString()}'));
     }
   }
 
-  /// Handle auth state changes from AuthService
+  /// Handle auth state changes from service
   void _onAuthStateChanged(AuthStateChanged event, Emitter<AuthBlocState> emit) {
     final authState = event.authState;
     
@@ -316,21 +310,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
         emit(const AuthInitial());
         break;
         
-      case AuthState.unauthenticated:
-        emit(const AuthUnauthenticated());
+      case AuthState.refreshing:
+        emit(AuthRefreshing(user: authState.user));
         break;
         
       case AuthState.authenticated:
         if (authState.user != null) {
           emit(AuthAuthenticated(user: authState.user!));
-          _checkTokenExpiry(authState.user!);
-        } else {
-          emit(const AuthUnauthenticated());
         }
         break;
         
-      case AuthState.refreshing:
-        emit(AuthRefreshing(user: authState.user));
+      case AuthState.unauthenticated:
+        emit(const AuthUnauthenticated());
         break;
         
       case AuthState.error:
@@ -352,14 +343,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     } else {
       emit(const AuthUnauthenticated());
     }
-  }
-
-  /// Handle token near expiry
-  void _onTokenNearExpiry(AuthTokenNearExpiry event, Emitter<AuthBlocState> emit) {
-    emit(AuthAuthenticated(
-      user: event.user,
-      isTokenNearExpiry: true,
-    ));
   }
 
   /// Load saved credentials for auto-fill
@@ -438,57 +421,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     );
   }
 
-  /// Start token expiry monitoring
-  void _startTokenExpiryMonitoring() {
-    _stopTokenExpiryMonitoring();
-    
-    _tokenExpiryCheckTimer = Timer.periodic(
-      const Duration(minutes: 1), // Check every minute
-      (timer) async {
-        if (_authService.isAuthenticated) {
-          final isNearExpiry = _authService.isTokenNearExpiry;
-          final currentUser = _authService.currentUser;
-          
-          if (isNearExpiry && currentUser != null) {
-            logger.d('Token near expiry detected');
-            
-            // Add event to emit state with expiry warning
-            if (state is AuthAuthenticated) {
-              add(AuthTokenNearExpiry(currentUser));
-            }
-            
-            // Trigger auto refresh
-            add(const AuthRefreshToken());
-          }
-        }
-      },
-    );
-  }
-
-  /// Stop token expiry monitoring
-  void _stopTokenExpiryMonitoring() {
-    _tokenExpiryCheckTimer?.cancel();
-    _tokenExpiryCheckTimer = null;
-  }
-
-  /// Check token expiry for specific user
-  Future<void> _checkTokenExpiry(UserSession user) async {
-    try {
-      final timeRemaining = await _authService.getTokenTimeRemaining();
-      
-      if (timeRemaining != null && timeRemaining.inMinutes <= 5) {
-        logger.w('Token expires in ${timeRemaining.inMinutes} minutes');
-        
-        if (state is AuthAuthenticated) {
-          // Use event to update state instead of direct emit
-          add(AuthTokenNearExpiry(user));
-        }
-      }
-    } catch (e) {
-      logger.e('Error checking token expiry: $e');
-    }
-  }
-
   /// Get current user from state
   UserSession? _getCurrentUser() {
     if (state is AuthAuthenticated) {
@@ -521,7 +453,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
   @override
   Future<void> close() async {
     _authStateSubscription?.cancel();
-    _stopTokenExpiryMonitoring();
     await _authService.dispose();
     
     logger.i('AuthBloc disposed');

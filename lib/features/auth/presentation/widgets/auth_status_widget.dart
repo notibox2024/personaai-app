@@ -40,16 +40,9 @@ class AuthStatusWidget extends StatelessWidget {
     
     switch (state.runtimeType) {
       case AuthAuthenticated:
-        final authState = state as AuthAuthenticated;
-        if (authState.isTokenNearExpiry) {
-          icon = TablerIcons.clock_exclamation;
-          color = colorScheme.warning;
-          tooltip = 'Token sắp hết hạn';
-        } else {
-          icon = TablerIcons.shield_check;
-          color = colorScheme.success;
-          tooltip = 'Đã xác thực';
-        }
+        icon = TablerIcons.shield_check;
+        color = colorScheme.success;
+        tooltip = 'Đã xác thực';
         break;
       case AuthLoading:
       case AuthRefreshing:
@@ -145,18 +138,10 @@ class AuthStatusWidget extends StatelessWidget {
     
     switch (state.runtimeType) {
       case AuthAuthenticated:
-        final authState = state as AuthAuthenticated;
-        if (authState.isTokenNearExpiry) {
-          icon = TablerIcons.clock_exclamation;
-          color = colorScheme.warning;
-          title = 'Token sắp hết hạn';
-          subtitle = 'Đang tự động làm mới...';
-        } else {
-          icon = TablerIcons.shield_check;
-          color = colorScheme.success;
-          title = 'Đã xác thực';
-          subtitle = 'Phiên đăng nhập hợp lệ';
-        }
+        icon = TablerIcons.shield_check;
+        color = colorScheme.success;
+        title = 'Đã xác thực';
+        subtitle = 'Phiên đăng nhập hợp lệ';
         break;
       case AuthLoading:
         icon = TablerIcons.loader;

@@ -134,6 +134,9 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
         title: 'PersonaAI',
         debugShowCheckedModeBanner: false,
         
+        // Navigation Key - Cần thiết cho NavigationService
+        navigatorKey: NavigationService.navigatorKey,
+        
         // Theme Configuration - Sử dụng theme system chuyên nghiệp
         theme: KienlongBankTheme.lightTheme,
         darkTheme: KienlongBankTheme.darkTheme,

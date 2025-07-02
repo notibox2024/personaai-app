@@ -6,6 +6,7 @@ import '../models/refresh_token_request.dart';
 import '../models/logout_request.dart';
 import '../models/token_validation_response.dart';
 import '../models/user_session.dart';
+import '../services/fcm_token_service.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../shared/services/token_manager.dart';
 import '../../../../shared/services/firebase_service.dart';
@@ -19,6 +20,7 @@ class AuthRepository {
 
   late final ApiService _apiService;
   late final TokenManager _tokenManager;
+  final FcmTokenService _fcmTokenService = FcmTokenService();
   final logger = Logger();
   
   UserSession? _currentSession;
@@ -108,6 +110,9 @@ class AuthRepository {
           loginAt: DateTime.now(),
           rememberMe: true,
         );
+        
+        // Update FCM token after successful login (async, không block login flow)
+        _fcmTokenService.updateTokenAfterLogin();
         
         logger.i('Login successful for user: ${request.username}');
         return AuthResult.success(authResponse);

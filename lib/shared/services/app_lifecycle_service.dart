@@ -168,13 +168,9 @@ class AppLifecycleService with WidgetsBindingObserver {
   Future<void> _handleShortBackgroundReturn() async {
     logger.d('Handling short background return');
     
-    // Check auth status
+    // Auth status check - token refresh is handled automatically by ApiService
     if (_authService.isAuthenticated) {
-      // Validate token if near expiry
-      final isNearExpiry = _authService.isTokenNearExpiry;
-      if (isNearExpiry) {
-        await _authService.forceRefreshToken();
-      }
+      logger.d('User authenticated, token refresh handled by ApiService');
     }
   }
 

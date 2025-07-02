@@ -13,9 +13,6 @@ abstract class AuthProvider {
   /// Stream of authentication state changes
   Stream<AuthStateData> get authStateStream;
   
-  /// Check if token is near expiry
-  bool get isTokenNearExpiry;
-  
   /// Login with username/password
   Future<bool> login(String username, String password);
   
