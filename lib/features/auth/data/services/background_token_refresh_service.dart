@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'auth_service.dart';
@@ -160,7 +159,7 @@ class BackgroundTokenRefreshService {
     try {
       logger.i('Starting background token refresh');
       
-      final success = await _authService.refreshToken();
+      final success = await _authService.backgroundRefreshToken();
       
       if (success) {
         _successfulRefreshes++;

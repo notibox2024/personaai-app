@@ -202,7 +202,6 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
         routes: {
           '/splash': (context) => const SplashScreen(),
           '/login': (context) => const ReactiveLoginPage(),
-          '/demo-login': (context) => const LoginPage(),
           '/main': (context) => AppLayout(onThemeToggle: toggleTheme),
         },
       ),

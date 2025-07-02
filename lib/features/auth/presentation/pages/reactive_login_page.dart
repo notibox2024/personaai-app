@@ -115,7 +115,7 @@ class _ReactiveLoginPageState extends State<ReactiveLoginPage>
     );
   }
 
-  /// Base gradient tương tự LoginPage
+  /// Base gradient với theme support
   LinearGradient _buildBaseGradient(Brightness brightness) {
     if (brightness == Brightness.light) {
       return const LinearGradient(
@@ -353,7 +353,7 @@ class _ReactiveLoginPageState extends State<ReactiveLoginPage>
                           // Connection Status
                           _buildConnectionStatus(),
                           
-                          // Form card với glass morphism effect giống LoginPage
+                          // Form card với glass morphism effect
                           ClipRRect(
                             borderRadius: BorderRadius.circular(16),
                             child: BackdropFilter(

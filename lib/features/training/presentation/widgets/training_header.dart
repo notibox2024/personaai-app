@@ -58,9 +58,9 @@ class TrainingHeader extends StatelessWidget {
                     children: [
                       Text(
                         'Đào tạo',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.onPrimary,
-                          fontWeight: FontWeight.w600,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       if (onHistoryTap != null)

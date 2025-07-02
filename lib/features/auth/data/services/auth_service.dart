@@ -30,6 +30,7 @@ class AuthService implements AuthProvider {
   bool _isInitialized = false;
 
   /// Stream of authentication state changes
+  @override
   Stream<AuthStateData> get authStateStream => _authStateController.stream;
   
   /// Current authentication state
@@ -221,15 +222,54 @@ class AuthService implements AuthProvider {
     }
   }
 
-  /// Perform token refresh internally
+  /// Silent token refresh for background service (không emit state changes khi thành công)
+  Future<bool> _performSilentRefreshToken() async {
+    try {
+      if (!_authRepository.isLoggedIn) {
+        logger.w('Cannot refresh token: not logged in');
+        return false;
+      }
+
+      final result = await _authRepository.refreshToken();
+      
+      if (result.success) {
+        final session = _authRepository.currentSession;
+        if (session != null) {
+          // Chỉ update internal state, KHÔNG emit thông qua stream
+          _currentState = AuthStateData.authenticated(session);
+          logger.d('Silent token refresh successful');
+          return true;
+        }
+      } else {
+        logger.w('Silent token refresh failed: ${result.error}');
+        // Emit state change chỉ khi có lỗi để trigger logout
+        await _performLogout();
+      }
+      
+      return false;
+    } catch (e) {
+      logger.e('Silent token refresh error: $e');
+      // Emit state change chỉ khi có lỗi để trigger logout
+      await _performLogout();
+      return false;
+    }
+  }
+
+  /// Background token refresh - sử dụng silent method
+  @override
+  Future<bool> backgroundRefreshToken() async {
+    return await _performSilentRefreshToken();
+  }
+
+  /// Perform token refresh internally (cho auto-refresh timer)
   Future<void> _performTokenRefresh() async {
     if (_currentState.state == AuthState.refreshing) {
       return; // Already refreshing
     }
     
     try {
-      _updateState(AuthStateData.refreshing(_currentState.user));
-      final success = await refreshToken();
+      // Sử dụng silent refresh cho auto-refresh để không gây UI reload
+      final success = await _performSilentRefreshToken();
       
       if (!success) {
         logger.w('Auto token refresh failed');
