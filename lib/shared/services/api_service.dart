@@ -6,6 +6,7 @@ import 'device_info_service.dart';
 import 'token_manager.dart';
 import 'firebase_service.dart';
 import '../constants/remote_config_keys.dart';
+import '../constants/api_endpoints.dart';
 import '../../features/auth/data/models/auth_response.dart';
 import '../../features/auth/data/models/refresh_token_request.dart';
 
@@ -71,11 +72,19 @@ class ApiService {
     _deviceInfoService = DeviceInfoService();
     _tokenManager = TokenManager();
     
-    // Get config from Firebase Remote Config
-    final backendUrl = FirebaseService().getConfigString(
-      RemoteConfigKeys.backendApiUrl, 
-      defaultValue: 'http://192.168.2.62:8097'
-    );
+    // Get backend URL based on environment
+    String backendUrl;
+    if (ApiEndpoints.isProductionMode) {
+      // Production: sử dụng remote config
+      backendUrl = FirebaseService().getConfigString(
+        RemoteConfigKeys.backendApiUrl, 
+        defaultValue: 'http://192.168.2.62:8097'
+      );
+    } else {
+      // Development: sử dụng constants
+      backendUrl = ApiEndpoints.getBackendUrl();
+    }
+    
     final timeoutSeconds = FirebaseService().getConfigInt(
       RemoteConfigKeys.apiTimeoutSeconds, 
       defaultValue: 30
@@ -107,8 +116,19 @@ class ApiService {
     _currentMode = 'backend';
     
     if (kDebugMode) {
-      logger.i('ApiService initialized with base URL: ${_dio.options.baseUrl}');
+      final envInfo = ApiEndpoints.isProductionMode ? 'remote config' : ApiEndpoints.currentEnvironmentName;
+      logger.i('ApiService initialized with base URL: ${_dio.options.baseUrl} (from $envInfo)');
       logger.i('Default API mode set to: $_currentMode');
+      
+      // Print environment info for developers
+      if (ApiEndpoints.isDevelopmentMode) {
+        final urls = ApiEndpoints.getCurrentUrls();
+        logger.i('Current environment URLs:');
+        logger.i('  Backend: ${urls['backend']}');
+        logger.i('  Data: ${urls['data']}');
+        logger.i('  Environment: ${urls['environment']}');
+        logger.i('To change URLs, update ApiEndpoints.currentEnvironment');
+      }
     }
   }
 
@@ -599,31 +619,47 @@ class ApiService {
 
   /// Switch to backend API mode
   Future<void> switchToBackendApi() async {
-    final backendUrl = FirebaseService().getConfigString(
-      RemoteConfigKeys.backendApiUrl,
-      defaultValue: 'http://192.168.2.62:8097'
-    );
+    String backendUrl;
+    if (ApiEndpoints.isProductionMode) {
+      // Production: sử dụng remote config
+      backendUrl = FirebaseService().getConfigString(
+        RemoteConfigKeys.backendApiUrl,
+        defaultValue: 'http://192.168.2.62:8097'
+      );
+    } else {
+      // Development: sử dụng constants
+      backendUrl = ApiEndpoints.getBackendUrl();
+    }
     
     _dio.options.baseUrl = backendUrl;
     _currentMode = 'backend';
     
     if (kDebugMode) {
-      logger.i('Switched to backend API: $backendUrl');
+      final envInfo = ApiEndpoints.isProductionMode ? 'remote config' : ApiEndpoints.currentEnvironmentName;
+      logger.i('Switched to backend API: $backendUrl (from $envInfo)');
     }
   }
 
   /// Switch to data API mode
   Future<void> switchToDataApi() async {
-    final dataUrl = FirebaseService().getConfigString(
-      RemoteConfigKeys.dataApiUrl,
-      defaultValue: 'http://192.168.2.62:3300'
-    );
+    String dataUrl;
+    if (ApiEndpoints.isProductionMode) {
+      // Production: sử dụng remote config
+      dataUrl = FirebaseService().getConfigString(
+        RemoteConfigKeys.dataApiUrl,
+        defaultValue: 'http://192.168.2.62:3300'
+      );
+    } else {
+      // Development: sử dụng constants
+      dataUrl = ApiEndpoints.getDataUrl();
+    }
     
     _dio.options.baseUrl = dataUrl;
     _currentMode = 'data';
     
     if (kDebugMode) {
-      logger.i('Switched to data API: $dataUrl');
+      final envInfo = ApiEndpoints.isProductionMode ? 'remote config' : ApiEndpoints.currentEnvironmentName;
+      logger.i('Switched to data API: $dataUrl (from $envInfo)');
     }
   }
 
