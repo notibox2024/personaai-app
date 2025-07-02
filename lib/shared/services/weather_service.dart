@@ -141,6 +141,9 @@ class WeatherService {
     try {
       _logger.i('Fetching weather from backend API for $latitude, $longitude');
       
+      // Switch to backend API mode
+      await _apiService.switchToBackendApi();
+      
       // Debug: Kiểm tra token availability
       final tokenManager = TokenManager();
       final hasToken = await tokenManager.getAccessToken() != null;
@@ -207,6 +210,9 @@ class WeatherService {
     try {
       _logger.i('Fetching weather from backend API (simple) for $latitude, $longitude');
       
+      // Switch to backend API mode
+      await _apiService.switchToBackendApi();
+      
       // Gọi backend API GET endpoint với query parameters
       final response = await _apiService.get(
         _currentEndpoint,
@@ -247,6 +253,9 @@ class WeatherService {
     try {
       _logger.i('Fetching Hanoi weather from test endpoint');
       
+      // Switch to backend API mode
+      await _apiService.switchToBackendApi();
+      
       final response = await _apiService.get(_hanoiTestEndpoint);
       final weatherData = WeatherData.fromJson(response.data);
       
@@ -274,6 +283,9 @@ class WeatherService {
   Future<WeatherData> getBerlinWeather() async {
     try {
       _logger.i('Fetching Berlin weather from test endpoint');
+      
+      // Switch to backend API mode
+      await _apiService.switchToBackendApi();
       
       final response = await _apiService.get(_berlinTestEndpoint);
       final weatherData = WeatherData.fromJson(response.data);

@@ -103,8 +103,12 @@ class ApiService {
 
     _setupInterceptors();
     
+    // Set default mode to backend API
+    _currentMode = 'backend';
+    
     if (kDebugMode) {
       logger.i('ApiService initialized with base URL: ${_dio.options.baseUrl}');
+      logger.i('Default API mode set to: $_currentMode');
     }
   }
 
@@ -154,13 +158,23 @@ class ApiService {
         try {
           // Determine if this endpoint needs auth token
           bool needsToken = false;
+          String modeInfo = '';
           
           if (_currentMode == 'data') {
             // Data API always needs token
             needsToken = true;
+            modeInfo = 'data API';
           } else if (_currentMode == 'backend') {
             // Backend API needs token except for auth endpoints
             needsToken = !_isAuthEndpoint(options.path);
+            modeInfo = needsToken ? 'backend API' : 'auth endpoint';
+          } else {
+            // Default to backend mode if not set (fallback)
+            needsToken = !_isAuthEndpoint(options.path);
+            modeInfo = needsToken ? 'default backend API' : 'auth endpoint';
+            if (kDebugMode) {
+              logger.w('API mode not set, defaulting to backend for ${options.path}');
+            }
           }
           
           if (needsToken) {
@@ -168,13 +182,13 @@ class ApiService {
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
               if (kDebugMode) {
-                logger.d('Added auth token for ${options.method} ${options.path}');
+                logger.d('Added auth token for ${options.method} ${options.path} ($modeInfo)');
               }
             } else if (kDebugMode) {
-              logger.w('No access token available for ${options.method} ${options.path}');
+              logger.w('No access token available for ${options.method} ${options.path} ($modeInfo)');
             }
           } else if (kDebugMode) {
-            logger.d('Skipping auth token for ${options.method} ${options.path} (auth endpoint)');
+            logger.d('Skipping auth token for ${options.method} ${options.path} ($modeInfo)');
           }
         } catch (e) {
           logger.w('Failed to add auth token: $e');
@@ -210,6 +224,12 @@ class ApiService {
             shouldHandle = true; // Data API always needs token
           } else if (_currentMode == 'backend') {
             shouldHandle = true; // Non-auth backend endpoints need token refresh
+          } else {
+            // Default to backend mode behavior if not set
+            shouldHandle = true;
+            if (kDebugMode) {
+              logger.w('API mode not set during 401 handling, defaulting to backend behavior');
+            }
           }
           
           if (shouldHandle) {
