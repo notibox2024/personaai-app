@@ -25,8 +25,6 @@ class AuthService implements AuthProvider {
   final StreamController<AuthStateData> _authStateController = StreamController<AuthStateData>.broadcast();
   AuthStateData _currentState = AuthStateData.initial();
   
-  // Auto-refresh timer
-  Timer? _refreshTimer;
   bool _isInitialized = false;
 
   /// Stream of authentication state changes
@@ -69,9 +67,40 @@ class AuthService implements AuthProvider {
     }
   }
 
+  /// Login with remember me option
+  Future<bool> loginWithRememberMe(String username, String password, bool rememberMe) async {
+    try {
+      final request = LoginRequest(username: username, password: password);
+      await _performLogin(request);
+      
+      // Save credentials if remember me is enabled
+      if (isAuthenticated && rememberMe) {
+        await _tokenManager.saveCredentials(
+          username: username,
+          password: password,
+        );
+        logger.i('Credentials saved for remember me');
+      } else if (isAuthenticated && !rememberMe) {
+        // Clear saved credentials if remember me is disabled
+        await _tokenManager.clearSavedCredentials();
+        logger.i('Saved credentials cleared (remember me disabled)');
+      }
+      
+      return isAuthenticated;
+    } catch (e) {
+      logger.e('Login with remember me error: $e');
+      return false;
+    }
+  }
+
   @override
   Future<void> logout() async {
     await _performLogout();
+  }
+
+  /// Logout with option to clear saved credentials
+  Future<void> logoutAndClearCredentials() async {
+    await _performLogout(clearCredentials: true);
   }
 
   @override
@@ -108,9 +137,6 @@ class AuthService implements AuthProvider {
       // Check existing authentication
       await _checkExistingAuth();
       
-      // Start auto-refresh timer
-      _startAutoRefreshTimer();
-      
       _isInitialized = true;
       logger.i('AuthService initialized');
     } catch (e) {
@@ -128,11 +154,7 @@ class AuthService implements AuthProvider {
           _updateState(AuthStateData.authenticated(session));
           logger.i('Existing authentication found for user: ${session.userId}');
           
-          // Check if token needs refresh
-          final shouldRefresh = await _authRepository.shouldAutoRefresh();
-          if (shouldRefresh) {
-            await _performTokenRefresh();
-          }
+          // Note: Token refresh is now handled by ApiService automatically
         } else {
           _updateState(AuthStateData.unauthenticated());
         }
@@ -171,13 +193,18 @@ class AuthService implements AuthProvider {
   }
 
   /// Logout user (internal method)
-  Future<void> _performLogout() async {
+  Future<void> _performLogout({bool clearCredentials = false}) async {
     try {
       _updateState(AuthStateData.refreshing(_currentState.user));
       
       final result = await _authRepository.logout();
       
-      _stopAutoRefreshTimer();
+      // Clear saved credentials if requested
+      if (clearCredentials) {
+        await _tokenManager.clearAll();
+        logger.i('Logout with credentials cleared');
+      }
+      
       _updateState(AuthStateData.unauthenticated());
       
       if (result.success) {
@@ -222,94 +249,7 @@ class AuthService implements AuthProvider {
     }
   }
 
-  /// Silent token refresh for background service (không emit state changes khi thành công)
-  Future<bool> _performSilentRefreshToken() async {
-    try {
-      if (!_authRepository.isLoggedIn) {
-        logger.w('Cannot refresh token: not logged in');
-        return false;
-      }
 
-      final result = await _authRepository.refreshToken();
-      
-      if (result.success) {
-        final session = _authRepository.currentSession;
-        if (session != null) {
-          // Chỉ update internal state, KHÔNG emit thông qua stream
-          _currentState = AuthStateData.authenticated(session);
-          logger.d('Silent token refresh successful');
-          return true;
-        }
-      } else {
-        logger.w('Silent token refresh failed: ${result.error}');
-        // Emit state change chỉ khi có lỗi để trigger logout
-        await _performLogout();
-      }
-      
-      return false;
-    } catch (e) {
-      logger.e('Silent token refresh error: $e');
-      // Emit state change chỉ khi có lỗi để trigger logout
-      await _performLogout();
-      return false;
-    }
-  }
-
-  /// Background token refresh - sử dụng silent method
-  @override
-  Future<bool> backgroundRefreshToken() async {
-    return await _performSilentRefreshToken();
-  }
-
-  /// Perform token refresh internally (cho auto-refresh timer)
-  Future<void> _performTokenRefresh() async {
-    if (_currentState.state == AuthState.refreshing) {
-      return; // Already refreshing
-    }
-    
-    try {
-      // Sử dụng silent refresh cho auto-refresh để không gây UI reload
-      final success = await _performSilentRefreshToken();
-      
-      if (!success) {
-        logger.w('Auto token refresh failed');
-      }
-    } catch (e) {
-      logger.e('Auto token refresh error: $e');
-    }
-  }
-
-  /// Start auto-refresh timer
-  void _startAutoRefreshTimer() {
-    _stopAutoRefreshTimer(); // Stop existing timer
-    
-    if (!FirebaseService().getConfigBool(RemoteConfigKeys.enableAutoRefresh, defaultValue: true)) {
-      logger.d('Auto refresh disabled via remote config');
-      return;
-    }
-    
-    // Check every 30 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
-      if (_authRepository.isLoggedIn) {
-        final shouldRefresh = await _authRepository.shouldAutoRefresh();
-        if (shouldRefresh) {
-          logger.d('Auto refresh triggered');
-          await _performTokenRefresh();
-        }
-      } else {
-        logger.d('Auto refresh skipped: not logged in');
-      }
-    });
-    
-    logger.d('Auto-refresh timer started');
-  }
-
-  /// Stop auto-refresh timer
-  void _stopAutoRefreshTimer() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-    logger.d('Auto-refresh timer stopped');
-  }
 
   /// Update authentication state
   void _updateState(AuthStateData newState) {
@@ -346,7 +286,6 @@ class AuthService implements AuthProvider {
 
   /// Dispose resources
   Future<void> dispose() async {
-    _stopAutoRefreshTimer();
     await _authStateController.close();
     _isInitialized = false;
     logger.i('AuthService disposed');
@@ -362,7 +301,7 @@ class AuthService implements AuthProvider {
     logger.d('Error: ${_currentState.error}');
     logger.d('Is Authenticated: $isAuthenticated');
     logger.d('Is Loading: $isLoading');
-    logger.d('Auto-refresh Timer: ${_refreshTimer != null ? 'Active' : 'Inactive'}');
+    logger.d('Token refresh: Handled by ApiService');
     logger.d('==========================');
   }
 } 

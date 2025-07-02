@@ -9,6 +9,22 @@ import '../constants/remote_config_keys.dart';
 import '../../features/auth/data/models/auth_response.dart';
 import '../../features/auth/data/models/refresh_token_request.dart';
 
+/// Callback type for navigation when authentication is required
+typedef AuthRequiredCallback = void Function();
+
+/// Pending request item for queuing during token refresh
+class PendingRequestItem {
+  final DioException originalError;
+  final ErrorInterceptorHandler handler;
+  final DateTime queuedAt;
+
+  PendingRequestItem({
+    required this.originalError,
+    required this.handler,
+    required this.queuedAt,
+  });
+}
+
 /// Enhanced API Service với interceptors cho authentication và device headers
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -23,8 +39,27 @@ class ApiService {
   
   // State management
   bool _isRefreshing = false;
-  final List<Completer<Response>> _pendingRequests = [];
+  final List<PendingRequestItem> _pendingRequests = [];
   String? _currentMode; // 'backend' or 'data'
+  
+  // Navigation callback for auth required scenarios
+  AuthRequiredCallback? _onAuthRequired;
+  
+  // Constants
+  static const Duration _pendingRequestTimeout = Duration(minutes: 2);
+  static const String _refreshEndpointPath = '/api/v1/auth/refresh';
+  
+  // Auth endpoints that should NOT trigger token refresh when 401
+  static const List<String> _authEndpoints = [
+    '/api/v1/auth/login',
+    '/api/v1/auth/logout', 
+    '/api/v1/auth/refresh',
+    '/api/v1/auth/register',
+    '/api/v1/auth/forgot-password',
+    '/api/v1/auth/reset-password',
+    '/api/v1/auth/verify-otp',
+  ];
+  
   /// Initialize ApiService với enhanced configuration
   Future<void> initialize({
     String? baseUrl,
@@ -125,9 +160,7 @@ class ApiService {
             needsToken = true;
           } else if (_currentMode == 'backend') {
             // Backend API needs token except for auth endpoints
-            final path = options.path;
-            final isAuthEndpoint = path.startsWith('/api/v1/auth/');
-            needsToken = !isAuthEndpoint;
+            needsToken = !_isAuthEndpoint(options.path);
           }
           
           if (needsToken) {
@@ -156,15 +189,38 @@ class ApiService {
   Interceptor _createErrorHandlingInterceptor() {
     return InterceptorsWrapper(
       onError: (error, handler) async {
-        // Only handle 401 errors for data API calls
-        if (error.response?.statusCode == 401 && _currentMode == 'data') {
-          if (!_isRefreshing) {
-            await _handle401Error(error, handler);
-            return;
-          } else {
-            // If already refreshing, queue this request
-            await _queueRequest(error, handler);
-            return;
+        // Only handle 401 errors for data API calls or non-auth backend endpoints
+        if (error.response?.statusCode == 401) {
+          final requestPath = error.requestOptions.path;
+          
+          // Check if this is an auth endpoint that should NOT trigger refresh
+          if (_isAuthEndpoint(requestPath)) {
+            if (requestPath.contains(_refreshEndpointPath)) {
+              logger.e('Refresh endpoint returned 401 - clearing auth and redirecting to login');
+            } else {
+              logger.w('Auth endpoint returned 401: $requestPath - not triggering refresh');
+            }
+            _clearAuthAndRedirect();
+            return handler.next(error);
+          }
+          
+          // Handle different scenarios based on current mode
+          bool shouldHandle = false;
+          if (_currentMode == 'data') {
+            shouldHandle = true; // Data API always needs token
+          } else if (_currentMode == 'backend') {
+            shouldHandle = true; // Non-auth backend endpoints need token refresh
+          }
+          
+          if (shouldHandle) {
+            if (!_isRefreshing) {
+              await _handle401Error(error, handler);
+              return;
+            } else {
+              // If already refreshing, queue this request
+              await _queueRequest(error, handler);
+              return;
+            }
           }
         }
         
@@ -323,11 +379,12 @@ class ApiService {
   Future<void> _handle401Error(DioException error, ErrorInterceptorHandler handler) async {
     try {
       _isRefreshing = true;
+      logger.i('Handling 401 error - attempting token refresh');
       
       // Try to refresh token
       final refreshToken = await _tokenManager.getRefreshToken();
       if (refreshToken == null) {
-        // No refresh token, redirect to login
+        logger.w('No refresh token available');
         _clearAuthAndRedirect();
         return handler.next(error);
       }
@@ -338,30 +395,35 @@ class ApiService {
       
       try {
         // Call refresh token endpoint
-        final response = await _dio.post('/auth/refresh', data: {
-          'refreshToken': refreshToken,
-        });
+        final request = RefreshTokenRequest(refreshToken: refreshToken);
+        final response = await _dio.post(_refreshEndpointPath, data: request.toJson());
         
         if (response.statusCode == 200) {
           final authResponse = AuthResponse.fromJson(response.data);
           await _tokenManager.saveTokens(authResponse);
           
+          logger.i('Token refresh successful');
+          
           // Switch back to original mode
           if (originalMode == 'data') {
             await switchToDataApi();
+          } else if (originalMode != null) {
+            _currentMode = originalMode;
           }
           
-          // Retry the original request
-          final requestOptions = error.requestOptions;
-          final token = await _tokenManager.getAccessToken();
-          if (token != null) {
-            requestOptions.headers['Authorization'] = 'Bearer $token';
+          // Retry the original request with new token
+          final success = await _retryOriginalRequest(error, handler);
+          if (!success) {
+            logger.w('Failed to retry original request after token refresh');
+            return handler.next(error);
           }
           
-          final retryResponse = await _dio.fetch(requestOptions);
-          return handler.resolve(retryResponse);
         } else {
-          throw Exception('Token refresh failed: ${response.statusCode}');
+          throw DioException(
+            requestOptions: response.requestOptions,
+            message: 'Token refresh failed with status: ${response.statusCode}',
+            response: response,
+          );
         }
       } catch (refreshError) {
         logger.e('Token refresh failed: $refreshError');
@@ -370,52 +432,146 @@ class ApiService {
       }
     } catch (e) {
       logger.e('Error handling 401: $e');
+      _clearAuthAndRedirect();
       return handler.next(error);
     } finally {
       _isRefreshing = false;
-      _processPendingRequests();
+      await _processPendingRequests();
+    }
+  }
+
+  /// Retry original request with new token
+  Future<bool> _retryOriginalRequest(DioException error, ErrorInterceptorHandler handler) async {
+    try {
+      final requestOptions = error.requestOptions.copyWith();
+      final token = await _tokenManager.getAccessToken();
+      
+      if (token != null) {
+        requestOptions.headers['Authorization'] = 'Bearer $token';
+      }
+      
+      final retryResponse = await _dio.fetch(requestOptions);
+      handler.resolve(retryResponse);
+      return true;
+    } catch (retryError) {
+      logger.e('Failed to retry original request: $retryError');
+      return false;
     }
   }
 
   /// Queue request while token is being refreshed
   Future<void> _queueRequest(DioException error, ErrorInterceptorHandler handler) async {
-    final completer = Completer<Response>();
-    _pendingRequests.add(completer);
+    final pendingItem = PendingRequestItem(
+      originalError: error,
+      handler: handler,
+      queuedAt: DateTime.now(),
+    );
     
-    try {
-      final response = await completer.future;
-      return handler.resolve(response);
-    } catch (e) {
-      return handler.next(error);
+    _pendingRequests.add(pendingItem);
+    logger.d('Queued request: ${error.requestOptions.method} ${error.requestOptions.path}');
+    
+    // Clean up old pending requests to prevent memory leaks
+    _cleanupOldPendingRequests();
+  }
+
+  /// Clean up old pending requests that have been waiting too long
+  void _cleanupOldPendingRequests() {
+    final now = DateTime.now();
+    final toRemove = <PendingRequestItem>[];
+    
+    for (final item in _pendingRequests) {
+      final waitTime = now.difference(item.queuedAt);
+      if (waitTime > _pendingRequestTimeout) {
+        toRemove.add(item);
+        logger.w('Removing expired pending request: ${item.originalError.requestOptions.path}');
+        
+        // Complete with timeout error
+        item.handler.next(DioException(
+          requestOptions: item.originalError.requestOptions,
+          message: 'Request timeout while waiting for token refresh',
+          type: DioExceptionType.receiveTimeout,
+        ));
+      }
+    }
+    
+    for (final item in toRemove) {
+      _pendingRequests.remove(item);
     }
   }
 
   /// Process pending requests after token refresh
-  void _processPendingRequests() async {
+  Future<void> _processPendingRequests() async {
+    if (_pendingRequests.isEmpty) return;
+    
+    logger.i('Processing ${_pendingRequests.length} pending requests');
     final token = await _tokenManager.getAccessToken();
     
-    for (final completer in _pendingRequests) {
+    // Process all pending requests
+    final requestsToProcess = List<PendingRequestItem>.from(_pendingRequests);
+    _pendingRequests.clear();
+    
+    for (final item in requestsToProcess) {
       try {
-        // This would need the original request options
-        // For now, we'll just complete with an error
-        completer.completeError(DioException(
-          requestOptions: RequestOptions(path: ''),
-          message: 'Request failed after token refresh',
-        ));
-      } catch (e) {
-        completer.completeError(e);
+        final requestOptions = item.originalError.requestOptions.copyWith();
+        
+        // Add new token if available
+        if (token != null) {
+          requestOptions.headers['Authorization'] = 'Bearer $token';
+        }
+        
+        // Retry the request
+        final retryResponse = await _dio.fetch(requestOptions);
+        item.handler.resolve(retryResponse);
+        
+        logger.d('Successfully retried: ${requestOptions.method} ${requestOptions.path}');
+        
+      } catch (retryError) {
+        logger.e('Failed to retry pending request: $retryError');
+        
+        // If retry fails, pass the original error
+        if (retryError is DioException && retryError.response?.statusCode == 401) {
+          // Still 401 after refresh - auth is completely invalid
+          item.handler.next(item.originalError);
+        } else {
+          // Other error during retry
+          item.handler.next(retryError is DioException ? retryError : item.originalError);
+        }
       }
     }
     
-    _pendingRequests.clear();
+    logger.i('Finished processing pending requests');
   }
 
   /// Clear authentication and redirect to login
   void _clearAuthAndRedirect() async {
     try {
+      logger.w('Clearing authentication and redirecting to login');
       await _tokenManager.clearTokens();
-      // TODO: Navigate to login page
-      logger.i('Authentication cleared, should redirect to login');
+      
+      // Clear any pending requests
+      final pendingRequests = List<PendingRequestItem>.from(_pendingRequests);
+      _pendingRequests.clear();
+      
+      // Complete pending requests with auth error
+      for (final item in pendingRequests) {
+        item.handler.next(DioException(
+          requestOptions: item.originalError.requestOptions,
+          message: 'Authentication required',
+          response: Response(
+            requestOptions: item.originalError.requestOptions,
+            statusCode: 401,
+            statusMessage: 'Authentication required',
+          ),
+        ));
+      }
+      
+      // Trigger navigation callback
+      if (_onAuthRequired != null) {
+        _onAuthRequired!();
+      } else {
+        logger.w('No auth required callback set - cannot redirect to login');
+      }
+      
     } catch (e) {
       logger.e('Error clearing auth: $e');
     }
@@ -664,6 +820,19 @@ class ApiService {
           statusCode: null,
           type: ApiExceptionType.unknown,
         );
+    }
+  }
+
+  /// Check if a request path is an auth endpoint that should not trigger token refresh
+  bool _isAuthEndpoint(String requestPath) {
+    return _authEndpoints.any((endpoint) => requestPath.contains(endpoint));
+  }
+
+  /// Set callback cho khi cần authentication (redirect to login)
+  void setAuthRequiredCallback(AuthRequiredCallback? callback) {
+    _onAuthRequired = callback;
+    if (kDebugMode) {
+      logger.d('Auth required callback ${callback != null ? 'set' : 'cleared'}');
     }
   }
 }

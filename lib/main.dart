@@ -121,7 +121,6 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
             final authModule = AuthModule.instance;
             final bloc = AuthBloc(
               authService: authModule.authService,
-              backgroundService: authModule.backgroundService,
             );
             
             // Initialize auth state

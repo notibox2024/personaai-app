@@ -10,7 +10,6 @@ export 'data/models/user_session.dart';
 // Export repositories & services
 export 'data/repositories/auth_repository.dart';
 export 'data/services/auth_service.dart';
-export 'data/services/background_token_refresh_service.dart';
 
 // Export BLoC
 export 'presentation/bloc/auth_bloc.dart';

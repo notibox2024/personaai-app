@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/data/services/auth_service.dart';
-import '../../features/auth/data/services/background_token_refresh_service.dart';
 import 'firebase_service.dart';
 import 'location_service.dart';
 
@@ -19,7 +18,6 @@ class AppLifecycleService with WidgetsBindingObserver {
   
   // Services
   late final AuthService _authService;
-  late final BackgroundTokenRefreshService _backgroundRefreshService;
   late final FirebaseService _firebaseService;
   late final LocationService _locationService;
   // late final NotificationService _notificationService; // TODO: Implement NotificationService
@@ -41,7 +39,6 @@ class AppLifecycleService with WidgetsBindingObserver {
     try {
       // Initialize services
       _authService = AuthService();
-      _backgroundRefreshService = BackgroundTokenRefreshService();
       _firebaseService = FirebaseService();
       _locationService = LocationService();
       // _notificationService = NotificationService(); // TODO: Implement NotificationService
@@ -95,8 +92,7 @@ class AppLifecycleService with WidgetsBindingObserver {
       
       logger.d('App was in background for: ${backgroundDuration.inMinutes} minutes');
       
-      // Resume background services
-      _backgroundRefreshService.resume();
+      // Note: Token refresh is now handled by ApiService automatically
       
       // Check auth status after long background
       if (backgroundDuration > _longBackgroundDuration) {
@@ -153,8 +149,7 @@ class AppLifecycleService with WidgetsBindingObserver {
       // Save critical data
       await _saveAppState();
       
-      // Pause all background services
-      _backgroundRefreshService.pause();
+      // Note: No background refresh service to pause (handled by ApiService)
       // await _locationService.pauseLocationTracking(); // TODO: Implement in LocationService
       
     } catch (e) {
@@ -296,7 +291,7 @@ class AppLifecycleService with WidgetsBindingObserver {
       'background_time': _backgroundTime?.toIso8601String(),
       'has_background_timer': _backgroundTimer != null,
       'auth_service_initialized': _authService.isAuthenticated,
-      'background_refresh_active': _backgroundRefreshService.isMonitoring,
+      'token_refresh_mode': 'handled_by_api_service',
     };
   }
 
@@ -338,7 +333,7 @@ class AppLifecycleService with WidgetsBindingObserver {
     logger.d('Background Time: $_backgroundTime');
     logger.d('Background Timer Active: ${_backgroundTimer != null}');
     logger.d('Auth Service Active: ${_authService.isAuthenticated}');
-    logger.d('Background Refresh Active: ${_backgroundRefreshService.isMonitoring}');
+    logger.d('Token Refresh: Handled by ApiService');
     logger.d('==========================');
   }
 } 

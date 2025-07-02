@@ -21,6 +21,8 @@ export 'services/device_info_service.dart';
 export 'services/token_manager.dart';
 export 'services/app_lifecycle_service.dart';
 export 'services/performance_monitor.dart';
+export 'services/navigation_service.dart';
+export 'services/global_services.dart';
 
 // ============== MODELS ==============
 export 'models/weather_data.dart';

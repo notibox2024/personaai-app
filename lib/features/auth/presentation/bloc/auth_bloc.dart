@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:equatable/equatable.dart';
@@ -6,7 +7,7 @@ import '../../data/models/auth_state.dart';
 import '../../data/models/login_request.dart';
 import '../../data/models/user_session.dart';
 import '../../data/services/auth_service.dart';
-import '../../data/services/background_token_refresh_service.dart';
+import '../../../../shared/services/token_manager.dart';
 
 // ==================== AUTH EVENTS ====================
 
@@ -74,6 +75,14 @@ class AuthTokenNearExpiry extends AuthEvent {
   List<Object?> get props => [user];
 }
 
+class AuthLoadSavedCredentials extends AuthEvent {
+  const AuthLoadSavedCredentials();
+}
+
+class AuthAutoLogin extends AuthEvent {
+  const AuthAutoLogin();
+}
+
 // ==================== AUTH STATES ====================
 
 abstract class AuthBlocState extends Equatable {
@@ -139,11 +148,25 @@ class AuthTokenExpired extends AuthBlocState {
   List<Object?> get props => [user];
 }
 
+class AuthCredentialsLoaded extends AuthBlocState {
+  final String? username;
+  final String? password;
+  final bool hasCredentials;
+
+  const AuthCredentialsLoaded({
+    this.username,
+    this.password,
+    this.hasCredentials = false,
+  });
+
+  @override
+  List<Object?> get props => [username, password, hasCredentials];
+}
+
 // ==================== AUTH BLOC ====================
 
 class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
   final AuthService _authService;
-  final BackgroundTokenRefreshService _backgroundService;
   final logger = Logger();
   
   StreamSubscription<AuthStateData>? _authStateSubscription;
@@ -151,9 +174,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
 
   AuthBloc({
     AuthService? authService,
-    BackgroundTokenRefreshService? backgroundService,
   })  : _authService = authService ?? AuthService(),
-        _backgroundService = backgroundService ?? BackgroundTokenRefreshService(),
         super(const AuthInitial()) {
     
     // Register event handlers
@@ -166,6 +187,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     on<AuthStateChanged>(_onAuthStateChanged);
     on<AuthClearError>(_onClearError);
     on<AuthTokenNearExpiry>(_onTokenNearExpiry);
+    on<AuthLoadSavedCredentials>(_onLoadSavedCredentials);
+    on<AuthAutoLogin>(_onAutoLogin);
   }
 
   /// Initialize authentication
@@ -196,9 +219,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     try {
       emit(const AuthLoading());
       
-      await _authService.login(event.username, event.password);
+      await _authService.loginWithRememberMe(
+        event.username, 
+        event.password, 
+        event.rememberMe,
+      );
       
-      logger.i('Login attempt completed for user: ${event.username}');
+      logger.i('Login attempt completed for user: ${event.username} (Remember me: ${event.rememberMe})');
     } catch (e) {
       logger.e('Login error: $e');
       emit(AuthError(message: 'Đăng nhập thất bại: ${e.toString()}'));
@@ -335,6 +362,70 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     ));
   }
 
+  /// Load saved credentials for auto-fill
+  Future<void> _onLoadSavedCredentials(AuthLoadSavedCredentials event, Emitter<AuthBlocState> emit) async {
+    try {
+      final tokenManager = TokenManager();
+      final savedCredentials = await tokenManager.getSavedCredentials();
+      
+      final username = savedCredentials['username'];
+      final password = savedCredentials['password'];
+      final hasCredentials = username != null && password != null;
+      
+      emit(AuthCredentialsLoaded(
+        username: username,
+        password: password,
+        hasCredentials: hasCredentials,
+      ));
+      
+      if (kDebugMode) {
+        logger.i('Saved credentials loaded: ${hasCredentials ? 'Found' : 'None'}');
+      }
+    } catch (e) {
+      logger.e('Error loading saved credentials: $e');
+      emit(const AuthCredentialsLoaded(hasCredentials: false));
+    }
+  }
+
+  /// Attempt auto login with saved credentials
+  Future<void> _onAutoLogin(AuthAutoLogin event, Emitter<AuthBlocState> emit) async {
+    try {
+      final tokenManager = TokenManager();
+      
+      // Check if remember me is enabled
+      if (!tokenManager.isRememberMeEnabled) {
+        logger.d('Auto login disabled - remember me not enabled');
+        return;
+      }
+
+      // Check if we have a valid refresh token first
+      final hasValidSession = await tokenManager.hasValidSession();
+      if (hasValidSession) {
+        logger.i('Auto login skipped - valid session exists');
+        return;
+      }
+
+      // Try auto login with saved credentials
+      final savedCredentials = await tokenManager.getSavedCredentials();
+      final username = savedCredentials['username'];
+      final password = savedCredentials['password'];
+      
+      if (username != null && password != null) {
+        logger.i('Attempting auto login for user: $username');
+        emit(const AuthLoading());
+        
+        await _authService.loginWithRememberMe(username, password, true);
+        
+        logger.i('Auto login completed for user: $username');
+      } else {
+        logger.w('Auto login failed - no saved credentials');
+      }
+    } catch (e) {
+      logger.e('Auto login error: $e');
+      emit(AuthError(message: 'Auto login failed: ${e.toString()}'));
+    }
+  }
+
   /// Start listening to auth service state changes
   void _startListeningToAuthChanges() {
     _authStateSubscription?.cancel();
@@ -423,7 +514,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     logger.d('Service Authenticated: ${_authService.isAuthenticated}');
     logger.d('Service Loading: ${_authService.isLoading}');
     logger.d('Current User: ${_authService.currentUser?.userId}');
-    logger.d('Background Service Refreshing: ${_backgroundService.isRefreshing}');
+    logger.d('Token Refresh: Handled by ApiService');
     logger.d('=======================');
   }
 
@@ -432,7 +523,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     _authStateSubscription?.cancel();
     _stopTokenExpiryMonitoring();
     await _authService.dispose();
-    await _backgroundService.dispose();
     
     logger.i('AuthBloc disposed');
     return super.close();

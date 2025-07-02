@@ -16,7 +16,7 @@ class AppModules {
       _logger.i('🚀 Initializing application modules...');
 
       // Phase 1: Initialize global infrastructure services
-      await GlobalServices.initialize();
+      await GlobalServices().initialize();
 
       // Phase 2: Initialize feature modules
       await AuthModule.instance.initialize();
@@ -44,7 +44,7 @@ class AppModules {
       AuthModule.instance.dispose();
       
       // Then dispose global services
-      await GlobalServices.dispose();
+      await GlobalServices().dispose();
 
       _initialized = false;
       _logger.i('✅ All application modules disposed');

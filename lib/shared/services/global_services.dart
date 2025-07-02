@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_service.dart';
@@ -8,66 +9,125 @@ import 'performance_monitor.dart';
 import 'app_lifecycle_service.dart';
 import 'weather_service.dart';
 import 'notification_demo_service.dart';
+import 'navigation_service.dart';
 
-/// Global coordination for infrastructure services
+/// Global services initializer và coordinator
+/// Setup các services và wire up callbacks giữa chúng
 class GlobalServices {
-  static final Logger _logger = Logger();
-  static bool _initialized = false;
+  static final GlobalServices _instance = GlobalServices._internal();
+  factory GlobalServices() => _instance;
+  GlobalServices._internal();
 
-  /// Initialize all infrastructure services in proper order
-  static Future<void> initialize() async {
-    if (_initialized) return;
-    
+  final logger = Logger();
+  bool _isInitialized = false;
+
+  /// Initialize all global services và setup callbacks
+  Future<void> initialize() async {
+    if (_isInitialized) {
+      logger.d('GlobalServices already initialized');
+      return;
+    }
+
     try {
-      _logger.i('🚀 Initializing global infrastructure services...');
+      logger.i('Initializing global services...');
+
+      // Initialize core services first
+      await _initializeCoreServices();
       
-      // Core infrastructure (order matters)
-      await FirebaseService().initialize();
-      await DeviceInfoService().initialize();
-      await TokenManager().initialize();
-      await PerformanceMonitor().initialize();
+      // Setup service callbacks
+      _setupServiceCallbacks();
       
-      // Network layer with proper configuration
-      await ApiService().initialize(
-        baseUrl: 'https://api.personaai.com', // Thay đổi theo API thực tế của bạn
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 5),
-      );
-      
-      // Set default mode to backend API (with auth token for non-auth endpoints)
-      await ApiService().switchToBackendApi();
-      
-      // Feature support services
-      await AppLifecycleService().initialize();
-      
-      // Services without initialize() method - just ensure they're created AFTER ApiService is ready
-      WeatherService(); // Singleton creation
-      NotificationDemoService(); // Singleton creation
-      
-      _initialized = true;
-      _logger.i('✅ Global services initialized successfully');
-      
+      _isInitialized = true;
+      logger.i('Global services initialized successfully');
     } catch (e) {
-      _logger.e('❌ Global services initialization failed: $e');
+      logger.e('GlobalServices initialization failed: $e');
       rethrow;
     }
   }
 
-  /// Dispose all global services
-  static Future<void> dispose() async {
+  /// Initialize core services trong order phù hợp
+  Future<void> _initializeCoreServices() async {
+    // 1. FirebaseService - cần setup sau Firebase.initializeApp() từ main.dart
+    await FirebaseService().initialize();
+    logger.d('✓ FirebaseService initialized');
+
+    // 2. DeviceInfoService - cần explicit initialize cho connectivity
+    await DeviceInfoService().initialize();
+    logger.d('✓ DeviceInfoService initialized');
+
+    // 3. TokenManager - cần có trước để ApiService có thể sử dụng
+    await TokenManager().initialize();
+    logger.d('✓ TokenManager initialized');
+
+    // 4. ApiService - phụ thuộc vào các services trên
+    await ApiService().initialize();
+    logger.d('✓ ApiService initialized');
+
+    // 5. NavigationService - ready to use
+    // NavigationService không cần explicit initialization
+    logger.d('✓ NavigationService ready');
+  }
+
+  /// Setup callbacks giữa các services
+  void _setupServiceCallbacks() {
+    logger.d('Setting up service callbacks...');
+    
+    // Setup ApiService auth required callback
+    ApiService().setAuthRequiredCallback(() {
+      _handleAuthRequired();
+    });
+    
+    logger.d('✓ Service callbacks configured');
+  }
+
+  /// Handle khi ApiService require authentication
+  Future<void> _handleAuthRequired() async {
     try {
-      AppLifecycleService().dispose();
-      // Add other disposals as needed
-      _initialized = false;
-      _logger.i('✅ Global services disposed');
+      logger.w('Authentication required - navigating to login');
+      
+      // Show dialog trước khi navigate (user-friendly)
+      await NavigationService().showAuthRequiredDialog();
+      
     } catch (e) {
-      _logger.e('❌ Global services disposal error: $e');
+      logger.e('Error handling auth required: $e');
+      
+      // Fallback - direct navigate
+      await NavigationService().navigateToLogin();
     }
   }
 
-  /// Check if global services are initialized
-  static bool get isInitialized => _initialized;
+  /// Get initialization status
+  bool get isInitialized => _isInitialized;
+
+  /// Dispose all services (for testing hoặc app shutdown)
+  Future<void> dispose() async {
+    try {
+      logger.i('Disposing global services...');
+      
+      // Clear callbacks
+      ApiService().setAuthRequiredCallback(null);
+      
+      // Note: Các services khác có thể có dispose methods riêng
+      // nhưng thường không cần dispose vì chúng là singletons
+      
+      _isInitialized = false;
+      logger.i('Global services disposed');
+    } catch (e) {
+      logger.e('Error disposing global services: $e');
+    }
+  }
+
+  /// Debug current services state
+  void debugServicesState() {
+    if (!kDebugMode) return;
+    
+    logger.d('=== GLOBAL SERVICES DEBUG ===');
+    logger.d('Is Initialized: $_isInitialized');
+    logger.d('TokenManager: ${TokenManager()}');
+    logger.d('ApiService: ${ApiService()}');
+    logger.d('NavigationService: ${NavigationService()}');
+    logger.d('=============================');
+  }
 
   // Quick access to common services (optional)
   static FirebaseService get firebase => FirebaseService();

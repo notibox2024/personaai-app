@@ -27,6 +27,10 @@ class TokenManager {
   static const String _lastLoginKey = 'last_login';
   static const String _autoLoginEnabledKey = 'auto_login_enabled';
   static const String _biometricEnabledKey = 'biometric_enabled';
+  
+  // Secure storage keys for remember me feature
+  static const String _savedUsernameKey = 'saved_username';
+  static const String _savedPasswordKey = 'saved_password';
 
   /// Initialize TokenManager
   Future<void> initialize() async {
@@ -247,6 +251,35 @@ class TokenManager {
     }
   }
 
+  /// Clear all tokens, metadata, and saved credentials (for complete logout)
+  Future<void> clearAll() async {
+    try {
+      await Future.wait([
+        // Clear secure storage (tokens + credentials)
+        _secureStorage.delete(key: _accessTokenKey),
+        _secureStorage.delete(key: _refreshTokenKey),
+        _secureStorage.delete(key: _tokenExpiresAtKey),
+        _secureStorage.delete(key: _refreshExpiresAtKey),
+        _secureStorage.delete(key: _savedUsernameKey),
+        _secureStorage.delete(key: _savedPasswordKey),
+        
+        // Clear user metadata
+        _prefs.remove(_userIdKey),
+        _prefs.remove(_usernameKey),
+        _prefs.remove(_lastLoginKey),
+        _prefs.remove(_autoLoginEnabledKey),
+        _prefs.remove(_biometricEnabledKey),
+      ]);
+
+      if (kDebugMode) {
+        logger.i('All tokens, metadata, and saved credentials cleared');
+      }
+    } catch (e) {
+      logger.e('Error clearing all data: $e');
+      rethrow;
+    }
+  }
+
   /// Get user metadata
   Future<Map<String, dynamic>> getUserMetadata() async {
     return {
@@ -288,6 +321,69 @@ class TokenManager {
     }
   }
 
+  /// Save credentials for "Remember Me" feature
+  Future<void> saveCredentials({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      await Future.wait([
+        _secureStorage.write(key: _savedUsernameKey, value: username),
+        _secureStorage.write(key: _savedPasswordKey, value: password),
+        _prefs.setBool(_autoLoginEnabledKey, true),
+      ]);
+
+      if (kDebugMode) {
+        logger.i('Credentials saved for remember me: $username');
+      }
+    } catch (e) {
+      logger.e('Error saving credentials: $e');
+      rethrow;
+    }
+  }
+
+  /// Get saved credentials for "Remember Me" feature
+  Future<Map<String, String?>> getSavedCredentials() async {
+    try {
+      final isRememberMeEnabled = _prefs.getBool(_autoLoginEnabledKey) ?? false;
+      
+      if (!isRememberMeEnabled) {
+        return {'username': null, 'password': null};
+      }
+
+      final username = await _secureStorage.read(key: _savedUsernameKey);
+      final password = await _secureStorage.read(key: _savedPasswordKey);
+
+      return {
+        'username': username,
+        'password': password,
+      };
+    } catch (e) {
+      logger.e('Error getting saved credentials: $e');
+      return {'username': null, 'password': null};
+    }
+  }
+
+  /// Clear saved credentials
+  Future<void> clearSavedCredentials() async {
+    try {
+      await Future.wait([
+        _secureStorage.delete(key: _savedUsernameKey),
+        _secureStorage.delete(key: _savedPasswordKey),
+        _prefs.setBool(_autoLoginEnabledKey, false),
+      ]);
+
+      if (kDebugMode) {
+        logger.i('Saved credentials cleared');
+      }
+    } catch (e) {
+      logger.e('Error clearing saved credentials: $e');
+    }
+  }
+
+  /// Check if remember me is enabled
+  bool get isRememberMeEnabled => _prefs.getBool(_autoLoginEnabledKey) ?? false;
+
   /// Debug: Print token status (only in debug mode)
   Future<void> debugTokenStatus() async {
     if (!kDebugMode) return;
@@ -299,6 +395,7 @@ class TokenManager {
       final isRefreshValid = await isRefreshTokenValid();
       final shouldRefresh = await shouldRefreshToken();
       final timeRemaining = await getTokenTimeRemaining();
+      final savedCredentials = await getSavedCredentials();
 
       logger.d('Token Status:');
       logger.d('  - Has access token: $hasAccess');
@@ -307,6 +404,8 @@ class TokenManager {
       logger.d('  - Refresh token valid: $isRefreshValid');
       logger.d('  - Should refresh: $shouldRefresh');
       logger.d('  - Time remaining: $timeRemaining');
+      logger.d('  - Remember me enabled: $isRememberMeEnabled');
+      logger.d('  - Has saved username: ${savedCredentials['username'] != null}');
     } catch (e) {
       logger.e('Error debugging token status: $e');
     }

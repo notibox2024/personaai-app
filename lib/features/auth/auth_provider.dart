@@ -30,7 +30,4 @@ abstract class AuthProvider {
   
   /// Force refresh token
   Future<bool> forceRefreshToken();
-  
-  /// Background refresh token (silent, không emit state changes)
-  Future<bool> backgroundRefreshToken();
 } 

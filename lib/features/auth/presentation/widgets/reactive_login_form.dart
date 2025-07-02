@@ -29,6 +29,15 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
   bool _rememberMe = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Load saved credentials when form initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthBloc>().add(const AuthLoadSavedCredentials());
+    });
+  }
+
+  @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
@@ -247,30 +256,41 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return BlocConsumer<AuthBloc, AuthBlocState>(
+    return BlocListener<AuthBloc, AuthBlocState>(
       listener: (context, state) {
-        if (state is AuthAuthenticated) {
-          // Login success
-          widget.onLoginSuccess?.call();
-        } else if (state is AuthError) {
-          // Show error in snackbar for immediate feedback
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: Colors.red.shade600,
-              behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(
-                label: 'Đóng',
-                textColor: Colors.white,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  _clearError();
-                },
-              ),
-            ),
-          );
+        // Handle saved credentials loaded
+        if (state is AuthCredentialsLoaded && state.hasCredentials) {
+          _usernameController.text = state.username ?? '';
+          _passwordController.text = state.password ?? '';
+          setState(() {
+            _rememberMe = true;
+          });
         }
       },
+      child: BlocConsumer<AuthBloc, AuthBlocState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            // Login success
+            widget.onLoginSuccess?.call();
+          } else if (state is AuthError) {
+            // Show error in snackbar for immediate feedback
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red.shade600,
+                behavior: SnackBarBehavior.floating,
+                action: SnackBarAction(
+                  label: 'Đóng',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    _clearError();
+                  },
+                ),
+              ),
+            );
+          }
+        },
       builder: (context, state) {
         final isLoading = state is AuthLoading || state is AuthRefreshing;
         final hasError = state is AuthError;
@@ -431,6 +451,7 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
           ),
         );
       },
+      ),
     );
   }
 
