@@ -1,3 +1,5 @@
+import 'user_profile.dart';
+
 /// Model lưu trữ thông tin phiên đăng nhập
 class UserSession {
   final String userId;
@@ -9,6 +11,7 @@ class UserSession {
   final DateTime expiresAt;
   final DateTime loginAt;
   final bool rememberMe;
+  final UserProfile? profile;
 
   const UserSession({
     required this.userId,
@@ -20,6 +23,7 @@ class UserSession {
     required this.expiresAt,
     required this.loginAt,
     this.rememberMe = false,
+    this.profile,
   });
 
   /// Tạo instance từ JSON
@@ -34,6 +38,7 @@ class UserSession {
       expiresAt: DateTime.parse(json['expires_at']),
       loginAt: DateTime.parse(json['login_at']),
       rememberMe: json['remember_me'] ?? false,
+      profile: json['profile'] != null ? UserProfile.fromJson(json['profile']) : null,
     );
   }
 
@@ -49,6 +54,7 @@ class UserSession {
       'expires_at': expiresAt.toIso8601String(),
       'login_at': loginAt.toIso8601String(),
       'remember_me': rememberMe,
+      'profile': profile?.toJson(),
     };
   }
 
@@ -65,6 +71,27 @@ class UserSession {
   /// Thời gian còn lại đến khi hết hạn
   Duration get timeUntilExpiry => expiresAt.difference(DateTime.now());
 
+  /// Lấy display name ưu tiên từ profile hoặc displayName
+  String get preferredDisplayName {
+    if (profile != null) {
+      return profile!.fullName.isNotEmpty ? profile!.fullName : displayName ?? email;
+    }
+    return displayName ?? email;
+  }
+
+  /// Lấy avatar ưu tiên từ profile hoặc avatar
+  String? get preferredAvatar {
+    return profile?.avatar ?? avatar;
+  }
+
+  /// Lấy email ưu tiên từ profile hoặc email
+  String get preferredEmail {
+    return profile?.emailInternal ?? email;
+  }
+
+  /// Kiểm tra có thông tin profile đầy đủ không
+  bool get hasCompleteProfile => profile != null;
+
   /// Copy với thông tin mới
   UserSession copyWith({
     String? userId,
@@ -76,6 +103,7 @@ class UserSession {
     DateTime? expiresAt,
     DateTime? loginAt,
     bool? rememberMe,
+    UserProfile? profile,
   }) {
     return UserSession(
       userId: userId ?? this.userId,
@@ -87,12 +115,23 @@ class UserSession {
       expiresAt: expiresAt ?? this.expiresAt,
       loginAt: loginAt ?? this.loginAt,
       rememberMe: rememberMe ?? this.rememberMe,
+      profile: profile ?? this.profile,
+    );
+  }
+
+  /// Copy with profile update (dành cho việc cập nhật profile sau khi lấy từ API)
+  UserSession copyWithProfile(UserProfile profile) {
+    return copyWith(
+      profile: profile,
+      displayName: profile.fullName,
+      avatar: profile.avatar,
+      email: profile.emailInternal,
     );
   }
 
   @override
   String toString() {
-    return 'UserSession(userId: $userId, email: $email, isExpired: $isExpired)';
+    return 'UserSession(userId: $userId, email: $preferredEmail, displayName: $preferredDisplayName, hasProfile: $hasCompleteProfile, isExpired: $isExpired)';
   }
 
   @override

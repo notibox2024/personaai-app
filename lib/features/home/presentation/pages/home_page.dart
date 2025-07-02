@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 // Models
 import '../../data/models/employee_info.dart';
@@ -14,7 +13,6 @@ import '../../../../shared/shared_exports.dart';
 import 'package:geolocator/geolocator.dart';
 
 // Auth Integration - use AuthModule for cross-feature access
-import '../../../auth/auth_module.dart';
 import '../../../auth/auth_exports.dart';
 
 // Widgets
@@ -43,8 +41,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Position? _currentPosition;
   bool _isLocationLoading = false;
 
-  // Get AuthProvider from AuthModule for cross-feature access
-  late final authProvider = AuthModule.instance.provider;
+  // Get AuthService directly
+  late final authProvider = AuthService();
 
   @override
   void initState() {
@@ -81,7 +79,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: StreamBuilder(
         stream: authProvider.authStateStream,
         builder: (context, snapshot) {
-          // Handle auth state changes via AuthProvider instead of BlocConsumer
+          // Handle auth state changes via AuthService instead of BlocConsumer
           if (!authProvider.isAuthenticated) {
             // Navigate to login page
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,7 +95,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             );
           }
           
-          // Get user info from auth provider
+          // Get user info from AuthService
           final user = authProvider.currentUser;
           
           return Scaffold(
@@ -122,7 +120,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   // Welcome Banner with Weather
                   SliverToBoxAdapter(
                     child: WelcomeBanner(
-                      employeeName: user?.displayName ?? 'Người dùng',
+                      employeeName: _getDisplayNameFromUser(user),
                       currentPosition: _currentPosition,
                       isLocationLoading: _isLocationLoading,
                       onLocationRefresh: _refreshLocation,
@@ -199,13 +197,43 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return _getMockEmployeeInfo(); // Fallback to mock data
     }
     
+    // Nếu có profile đầy đủ từ API, sử dụng thông tin thực
+    if (user.hasCompleteProfile && user.profile != null) {
+      final profile = user.profile!;
+      return EmployeeInfo(
+        id: profile.empCode, // Sử dụng emp_code làm ID
+        fullName: profile.fullName,
+        position: profile.jobTitleName, // Chức vụ thực từ API
+        department: profile.orgName, // Tên công ty/phòng ban
+        avatarUrl: profile.avatar ?? '',
+        notificationCount: 0, // TODO: Lấy từ API notification sau
+      );
+    }
+    
+    // Fallback cho trường hợp chưa có profile đầy đủ
     return EmployeeInfo(
       id: user.userId,
-      fullName: user.displayName ?? 'Người dùng',
+      fullName: user.preferredDisplayName,
       position: 'Nhân viên', // Default position
-      department: 'IT', // Default department
-      avatarUrl: user.avatar ?? '',
+      department: 'PersonaAI Corporation', // Default department
+      avatarUrl: user.preferredAvatar ?? '',
+      notificationCount: 0,
     );
+  }
+
+  /// Get display name từ UserSession với ưu tiên từ profile
+  String _getDisplayNameFromUser(UserSession? user) {
+    if (user == null) {
+      return 'Người dùng';
+    }
+    
+    // Ưu tiên tên từ profile nếu có
+    if (user.hasCompleteProfile && user.profile != null) {
+      return user.profile!.fullName;
+    }
+    
+    // Fallback đến preferredDisplayName
+    return user.preferredDisplayName;
   }
 
   // =============== LOCATION METHODS ===============

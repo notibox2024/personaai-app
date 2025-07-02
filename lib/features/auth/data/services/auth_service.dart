@@ -5,9 +5,8 @@ import '../models/auth_state.dart';
 import '../models/login_request.dart';
 import '../models/user_session.dart';
 import '../repositories/auth_repository.dart';
+import 'user_profile_service.dart';
 import '../../../../shared/services/token_manager.dart';
-import '../../../../shared/services/firebase_service.dart';
-import '../../../../shared/constants/remote_config_keys.dart';
 import '../../auth_provider.dart';
 
 /// Service quản lý authentication state và auto-refresh logic
@@ -151,8 +150,32 @@ class AuthService implements AuthProvider {
       if (_authRepository.isLoggedIn) {
         final session = _authRepository.currentSession;
         if (session != null) {
-          _updateState(AuthStateData.authenticated(session));
-          logger.i('Existing authentication found for user: ${session.userId}');
+          // Nếu session chưa có profile, thử lấy thông tin profile
+          if (!session.hasCompleteProfile) {
+            try {
+              logger.i('Existing session found, fetching user profile...');
+              
+              final userProfileService = UserProfileService();
+              final userProfile = await userProfileService.getCurrentUserProfile();
+              
+              // Cập nhật session với thông tin profile
+              final updatedSession = session.copyWithProfile(userProfile);
+              _authRepository.updateCurrentSession(updatedSession);
+              
+              _updateState(AuthStateData.authenticated(updatedSession));
+              logger.i('Existing authentication with profile found for user: ${userProfile.fullName} (${userProfile.empCode})');
+              
+            } catch (e) {
+              // Nếu lấy profile thất bại, vẫn cho authenticated nhưng không có profile
+              logger.w('Failed to fetch user profile for existing session: $e');
+              _updateState(AuthStateData.authenticated(session));
+              logger.i('Existing authentication found but profile fetch failed for user: ${session.userId}');
+            }
+          } else {
+            // Session đã có profile đầy đủ
+            _updateState(AuthStateData.authenticated(session));
+            logger.i('Existing authentication with profile found for user: ${session.preferredDisplayName}');
+          }
           
           // Note: Token refresh is now handled by ApiService automatically
         } else {
@@ -177,8 +200,26 @@ class AuthService implements AuthProvider {
       if (result.success && result.data != null) {
         final session = _authRepository.currentSession;
         if (session != null) {
-          _updateState(AuthStateData.authenticated(session));
-          logger.i('Login successful for user: ${request.username}');
+          // Login thành công, bây giờ lấy thông tin user profile
+          try {
+            logger.i('Login successful, fetching user profile...');
+            
+            final userProfileService = UserProfileService();
+            final userProfile = await userProfileService.getCurrentUserProfile();
+            
+            // Cập nhật session với thông tin profile
+            final updatedSession = session.copyWithProfile(userProfile);
+            _authRepository.updateCurrentSession(updatedSession);
+            
+            _updateState(AuthStateData.authenticated(updatedSession));
+            logger.i('Login and profile fetch successful for user: ${userProfile.fullName} (${userProfile.empCode})');
+            
+          } catch (e) {
+            // Nếu lấy profile thất bại, vẫn cho login thành công nhưng không có profile
+            logger.w('Failed to fetch user profile after login: $e');
+            _updateState(AuthStateData.authenticated(session));
+            logger.i('Login successful but profile fetch failed for user: ${request.username}');
+          }
         } else {
           _updateState(AuthStateData.error('Session creation failed'));
         }
@@ -249,8 +290,6 @@ class AuthService implements AuthProvider {
     }
   }
 
-
-
   /// Update authentication state
   void _updateState(AuthStateData newState) {
     _currentState = newState;
@@ -282,6 +321,34 @@ class AuthService implements AuthProvider {
     void Function(AuthStateData state) onAuthChanged
   ) {
     return _authStateController.stream.listen(onAuthChanged);
+  }
+
+  /// Refresh user profile information
+  Future<bool> refreshUserProfile() async {
+    try {
+      if (!isAuthenticated || _currentState.user == null) {
+        logger.w('Cannot refresh profile: user not authenticated');
+        return false;
+      }
+
+      logger.i('Refreshing user profile...');
+      
+      final userProfileService = UserProfileService();
+      final userProfile = await userProfileService.getCurrentUserProfile();
+      
+      // Cập nhật session với thông tin profile mới
+      final currentSession = _currentState.user!;
+      final updatedSession = currentSession.copyWithProfile(userProfile);
+      _authRepository.updateCurrentSession(updatedSession);
+      
+      _updateState(AuthStateData.authenticated(updatedSession));
+      logger.i('User profile refreshed successfully: ${userProfile.fullName} (${userProfile.empCode})');
+      
+      return true;
+    } catch (e) {
+      logger.e('Failed to refresh user profile: $e');
+      return false;
+    }
   }
 
   /// Dispose resources

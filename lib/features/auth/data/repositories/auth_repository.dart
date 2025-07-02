@@ -267,13 +267,17 @@ class AuthRepository {
     }
   }
 
-  /// Check if user is currently logged in
-  bool get isLoggedIn {
-    return _currentSession != null && !_currentSession!.isExpired;
-  }
-
-  /// Get current user session
+  /// Current user session (getter)
   UserSession? get currentSession => _currentSession;
+  
+  /// Check if user is logged in
+  bool get isLoggedIn => _currentSession != null && !_currentSession!.isExpired;
+
+  /// Update current session (để cập nhật với thông tin profile)
+  void updateCurrentSession(UserSession updatedSession) {
+    _currentSession = updatedSession;
+    logger.d('Current session updated with new information');
+  }
 
   /// Check if should auto-refresh token
   Future<bool> shouldAutoRefresh() async {
