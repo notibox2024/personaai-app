@@ -138,6 +138,13 @@ flutter pub run flutter_native_splash:create
 ```
 
 6. **Chạy ứng dụng**
+
+```
+- Chạy personaai-api spring boot, lấy IP của máy
+- Sửa backendUrl và dataUrl trong lib/shared/constants/api_endpoints.dart trỏ đến IP của máy
+- Lưu ý `static const ApiEnvironment currentEnvironment = ApiEnvironment.development;` -> khai báo đúng môi trường ứng với IP của spring boot api
+```
+
 ```bash
 # Chạy trên debug mode
 flutter run
