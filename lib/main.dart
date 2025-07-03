@@ -78,16 +78,33 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
   
   // Theme mode state management
   ThemeMode _themeMode = ThemeMode.system;
+  
+  // Global AuthBloc instance để tránh recreation
+  late final AuthBloc _authBloc;
+  bool _isAuthBlocInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    // No need for additional service initialization - handled by AppModules
+    
+    // Initialize AuthBloc một lần duy nhất
+    final authModule = AuthModule.instance;
+    _authBloc = AuthBloc(authService: authModule.authService);
+    
+    // Initialize auth state một lần với delay
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isAuthBlocInitialized) {
+        _isAuthBlocInitialized = true;
+        _authBloc.add(const AuthInitialize());
+        logger.i('🔐 AuthBloc initialized once');
+      }
+    });
   }
 
   @override
   void dispose() {
-    // Dispose managed by AppModules
+    // Dispose AuthBloc
+    _authBloc.close();
     super.dispose();
   }
 
@@ -117,19 +134,9 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        // Auth BLoC Provider - now using AuthModule
-        BlocProvider<AuthBloc>(
-          create: (context) {
-            final authModule = AuthModule.instance;
-            final bloc = AuthBloc(
-              authService: authModule.authService,
-            );
-            
-            // Initialize auth state
-            bloc.add(const AuthInitialize());
-            
-            return bloc;
-          },
+        // Auth BLoC Provider - using singleton instance để tránh recreation
+        BlocProvider<AuthBloc>.value(
+          value: _authBloc,
         ),
       ],
       child: MaterialApp(
@@ -193,12 +200,43 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
                   final navigationService = NavigationService();
                   final currentRoute = navigationService.getCurrentRouteName();
                   
-                  // Chỉ navigate nếu hiện tại đang ở login page
-                  if (currentRoute == '/login') {
-                    navigationService.pushNamedAndRemoveUntil('/main', (route) => false);
-                    Logger().i('🏠 Navigating to home after successful login from login page');
+                  Logger().d('Auth successful, current route: $currentRoute');
+                  
+                  // Navigate to home nếu:
+                  // 1. Đang ở login page, HOẶC
+                  // 2. Current route là null (có thể do navigation state chưa stable), HOẶC
+                  // 3. Current route không phải là main page
+                  if (currentRoute == '/login' || 
+                      currentRoute == null || 
+                      currentRoute != '/main') {
+                    // Add delay để tránh infinite loop và cho phép UI settle
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (context.mounted) {
+                        navigationService.navigateToHome(clearStack: true, force: true);
+                        Logger().i('🏠 Navigating to home after successful login (from: $currentRoute)');
+                      }
+                    });
                   } else {
-                    Logger().d('Already at home or other page ($currentRoute), skipping navigation');
+                    Logger().d('Already at home page ($currentRoute), skipping navigation');
+                  }
+                });
+              }
+              
+              // Handle forced logout/session expiry  
+              if (state is AuthUnauthenticated) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final navigationService = NavigationService();
+                  final currentRoute = navigationService.getCurrentRouteName();
+                  
+                  // Only navigate to login if not already there and not at splash
+                  if (currentRoute != '/login' && currentRoute != '/splash') {
+                    Logger().w('🔄 User unauthenticated, navigating to login from main.dart');
+                    // Add small delay để tránh race với ProfilePage logout
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      navigationService.navigateToLogin(clearStack: true, force: true);
+                    });
+                  } else {
+                    Logger().d('Already at login/splash ($currentRoute), skipping main.dart navigation');
                   }
                 });
               }

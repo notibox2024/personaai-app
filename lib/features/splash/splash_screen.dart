@@ -22,6 +22,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Set current route tracking
+    NavigationService().setCurrentRoute('/splash');
+    
     _initAnimations();
     _startSplashSequence();
   }
@@ -89,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
       // Navigate to login after splash
       await Future.delayed(const Duration(milliseconds: 2500));
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        NavigationService().navigateToLogin(clearStack: true);
       }
     } catch (e) {
       // Handle any animation errors silently

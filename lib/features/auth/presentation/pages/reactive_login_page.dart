@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
+import 'package:logger/logger.dart';
+import '../../../../shared/shared_exports.dart';
 import '../bloc/auth_bloc.dart';
 import '../widgets/reactive_login_form.dart';
 import '../widgets/login_header.dart';
@@ -28,6 +30,8 @@ class ReactiveLoginPage extends StatefulWidget {
 class _ReactiveLoginPageState extends State<ReactiveLoginPage> 
     with SingleTickerProviderStateMixin {
   
+  final logger = Logger();
+  
   // Single animation controller để tránh conflicts
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -36,6 +40,9 @@ class _ReactiveLoginPageState extends State<ReactiveLoginPage>
   @override
   void initState() {
     super.initState();
+    
+    // Set current route tracking
+    NavigationService().setCurrentRoute('/login');
     
     // Simple single animation controller
     _animationController = AnimationController(
@@ -64,12 +71,9 @@ class _ReactiveLoginPageState extends State<ReactiveLoginPage>
     // Start simple repeating animation
     _animationController.repeat(reverse: true);
     
-    // Initialize AuthBloc
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<AuthBloc>().add(const AuthInitialize());
-      }
-    });
+    // NO MORE AuthBloc.initialize() call - tránh infinite loop
+    // AuthBloc đã được initialize bởi main.dart
+    logger.d('ReactiveLoginPage initialized without calling AuthInitialize (prevent loop)');
   }
 
   @override
@@ -328,7 +332,9 @@ class _ReactiveLoginPageState extends State<ReactiveLoginPage>
         body: BlocListener<AuthBloc, AuthBlocState>(
           listener: (context, state) {
             if (state is AuthAuthenticated) {
-              widget.onLoginSuccess?.call();
+              // Navigation is handled by main.dart BlocListener to avoid conflicts
+              // widget.onLoginSuccess?.call(); // Removed to prevent duplicate navigation
+              logger.i('✅ Login successful, navigation handled centrally');
             }
           },
           child: Stack(

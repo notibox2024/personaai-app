@@ -80,17 +80,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         stream: authProvider.authStateStream,
         builder: (context, snapshot) {
           // Handle auth state changes via AuthService instead of BlocConsumer
+          // Note: Navigation is now handled by main.dart BlocListener để tránh conflicts
           if (!authProvider.isAuthenticated) {
-            // Navigate to login page
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/login',
-                (route) => false,
-              );
-            });
+            // Just show loading, navigation handled by main.dart
             return const Scaffold(
               body: Center(
-                child: CircularProgressIndicator(),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Đang kiểm tra xác thực...'),
+                  ],
+                ),
               ),
             );
           }

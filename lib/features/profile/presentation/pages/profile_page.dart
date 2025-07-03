@@ -11,6 +11,7 @@ import '../../data/models/user_profile.dart';
 import '../../../auth/presentation/widgets/logout_button.dart';
 import '../../../auth/presentation/widgets/fcm_token_debug_widget.dart';
 import '../../../../shared/widgets/custom_card.dart';
+import '../../../../shared/services/navigation_service.dart';
 
 /// Trang cá nhân chính
 class ProfilePage extends StatefulWidget {
@@ -242,11 +243,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _handleLogoutSuccess() {
-    // Navigate to login page or main navigation
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login',
-      (route) => false,
-    );
+    // Use NavigationService for centralized navigation management
+    // Use force=true để đảm bảo logout navigation luôn thành công
+    NavigationService().navigateToLogin(clearStack: true, force: true);
   }
 
   // =============== MOCK DATA ===============

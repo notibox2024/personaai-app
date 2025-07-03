@@ -21,7 +21,6 @@ class GlobalServices {
 
   final logger = Logger();
   bool _isInitialized = false;
-  bool _isHandlingAuthRequired = false; // Flag để tránh multiple auth dialogs
 
   /// Initialize all global services và setup callbacks
   Future<void> initialize() async {
@@ -88,39 +87,28 @@ class GlobalServices {
 
   /// Handle khi ApiService require authentication
   Future<void> _handleAuthRequired() async {
-    // Tránh multiple auth dialogs
-    if (_isHandlingAuthRequired) {
-      logger.d('Already handling auth required - skipping');
-      return;
-    }
-    
+    // Tránh multiple auth dialogs - sử dụng NavigationService state management
     try {
-      _isHandlingAuthRequired = true;
-      logger.w('Authentication required - navigating to login');
+      logger.w('Authentication required - showing auth dialog');
       
-      // Show dialog trước khi navigate (user-friendly)
+      // NavigationService sẽ tự handle việc tránh duplicate dialogs
       await NavigationService().showAuthRequiredDialog();
       
     } catch (e) {
       logger.e('Error handling auth required: $e');
       
-      // Fallback - direct navigate
-      await NavigationService().navigateToLogin();
-    } finally {
-      // Reset flag sau 5 giây để cho phép retry nếu cần
-      Future.delayed(const Duration(seconds: 5), () {
-        _isHandlingAuthRequired = false;
-      });
+      // Fallback - direct navigate với force flag
+      await NavigationService().navigateToLogin(force: true);
     }
   }
 
   /// Get initialization status
   bool get isInitialized => _isInitialized;
 
-  /// Reset auth required flag để tránh loop
+  /// Reset navigation flags (delegate to NavigationService)
   void resetAuthRequiredFlag() {
-    _isHandlingAuthRequired = false;
-    logger.d('Auth required flag reset');
+    NavigationService().resetNavigationFlags();
+    logger.d('Auth navigation flags reset via NavigationService');
   }
 
   /// Dispose all services (for testing hoặc app shutdown)

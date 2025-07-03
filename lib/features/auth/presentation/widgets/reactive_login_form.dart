@@ -24,6 +24,7 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _hasLoadedCredentials = false; // Track để tránh load credentials multiple times
   
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
@@ -31,9 +32,15 @@ class _ReactiveLoginFormState extends State<ReactiveLoginForm> {
   @override
   void initState() {
     super.initState();
-    // Load saved credentials when form initializes
+    // Load saved credentials when form initializes (một lần duy nhất)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthBloc>().add(const AuthLoadSavedCredentials());
+      // Add longer delay để cho logout process settle hoàn toàn và prevent immediate auto-login
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted && !_hasLoadedCredentials) {
+          _hasLoadedCredentials = true; // Ngăn load multiple times
+          context.read<AuthBloc>().add(const AuthLoadSavedCredentials());
+        }
+      });
     });
   }
 

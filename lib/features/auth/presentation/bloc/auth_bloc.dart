@@ -230,7 +230,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthBlocState> {
     try {
       emit(const AuthLoading());
       await _authService.logout();
-      logger.i('User logged out successfully');
+      
+      // Clear saved credentials để tránh auto-login sau logout
+      final tokenManager = TokenManager();
+      await tokenManager.clearSavedCredentials();
+      
+      logger.i('User logged out successfully and saved credentials cleared');
       
       // State sẽ được update qua _onAuthStateChanged
       
