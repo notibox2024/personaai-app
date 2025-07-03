@@ -20,10 +20,10 @@ class ApiEndpoints {
 
   // ============== DEVELOPMENT URLs ==============
   /// URL backend API cho development (Spring Boot)
-  static const String devBackendApiUrl = 'http://192.168.2.62:8097';
+  static const String devBackendApiUrl = 'http://192.168.2.61:8097';
   
   /// URL data API cho development (postgREST)
-  static const String devDataApiUrl = 'http://192.168.2.62:3300';
+  static const String devDataApiUrl = 'http://192.168.2.61:3300';
 
   // ============== LOCAL DEVELOPMENT URLs ==============
   /// URL backend API cho local development

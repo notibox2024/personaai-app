@@ -19,6 +19,7 @@ import 'shared/services/app_lifecycle_service.dart';
 import 'shared/services/device_info_service.dart';
 import 'shared/services/token_manager.dart';
 import 'shared/services/performance_monitor.dart';
+import 'shared/services/navigation_service.dart';
 
 void main() async {
   final logger = Logger();
@@ -177,6 +178,21 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
                     ),
                   ),
                 );
+              }
+              
+              // Handle navigation when auth state changes
+              if (state is AuthAuthenticated) {
+                // Khi login thành công, sử dụng NavigationService để tránh context issues
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final navigationService = NavigationService();
+                  
+                  // Luôn navigate về home khi login thành công 
+                  // Điều này sẽ clear tất cả routes và đưa user về AppLayout
+                  navigationService.pushNamedAndRemoveUntil('/main', (route) => false);
+                  
+                  // Debug log
+                  Logger().i('🏠 Navigating to home after successful login');
+                });
               }
             },
             child: child ?? const SizedBox.shrink(),

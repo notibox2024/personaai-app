@@ -163,6 +163,12 @@ CREATE TABLE attendance.attendance_sessions (
     check_out_time TIMESTAMP,
     location_id INTEGER REFERENCES attendance.workplace_locations(id),
     
+    -- Link to shift and status
+    shift_id INTEGER REFERENCES attendance.work_shifts(id),
+    status VARCHAR(20) DEFAULT 'active',
+    is_pre_approved BOOLEAN DEFAULT false,
+    work_duration_minutes INTEGER,
+    
     -- Link to device logs
     check_in_device_log_id BIGINT,
     check_out_device_log_id BIGINT,
@@ -428,15 +434,41 @@ CREATE TABLE attendance.device_logs (
     device_identifier VARCHAR(100) NOT NULL,
     action_timestamp TIMESTAMP NOT NULL,
     action_type VARCHAR(20) NOT NULL,
+    
+    -- Dedicated GPS columns
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    gps_accuracy DECIMAL(6,2),
+    
+    -- Dedicated WiFi columns
+    wifi_ssid VARCHAR(100),
+    wifi_bssid VARCHAR(17),
+    
+    -- Dedicated tracking columns
+    source VARCHAR(20),
+    action VARCHAR(20),
+    session_id BIGINT,
+    
+    -- Legacy JSON fields (for backward compatibility)
     location_data JSONB,
     device_info JSONB,
     validation_result JSONB,
     suspicious_flags JSONB DEFAULT '[]'::jsonb,
     risk_score INTEGER DEFAULT 0,
     
-    -- Bảng system log không cần audit columns
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Timestamp và audit columns
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by TEXT DEFAULT 'system',
+    last_modified_by TEXT DEFAULT 'system',
+    last_modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+COMMENT ON TABLE attendance.device_logs IS 'Chi tiết thiết bị và vị trí cho từng lần chấm công';
+COMMENT ON COLUMN attendance.device_logs.session_id IS 'Liên kết với attendance_sessions (BIGINT)';
+COMMENT ON COLUMN attendance.device_logs.source IS 'Nguồn: app, device, manual';
+COMMENT ON COLUMN attendance.device_logs.action IS 'Hành động: check_in, check_out';
+COMMENT ON COLUMN attendance.device_logs.created_by IS 'Người/hệ thống tạo record';
+COMMENT ON COLUMN attendance.device_logs.last_modified_by IS 'Người/hệ thống sửa record cuối cùng';
 
 -- ============================================================
 -- 15. SUSPICIOUS ACTIVITIES - Hoạt động khả nghi
@@ -656,6 +688,9 @@ FOREIGN KEY (validated_by) REFERENCES public.employees(id);
 CREATE INDEX idx_sessions_employee_date ON attendance.attendance_sessions (employee_id, work_date);
 CREATE INDEX idx_sessions_check_in_time ON attendance.attendance_sessions (check_in_time);
 CREATE INDEX idx_sessions_incomplete ON attendance.attendance_sessions (employee_id, work_date) WHERE check_out_time IS NULL;
+CREATE INDEX idx_sessions_status ON attendance.attendance_sessions (status, work_date);
+CREATE INDEX idx_sessions_shift ON attendance.attendance_sessions (shift_id, work_date);
+CREATE INDEX idx_sessions_preapproved ON attendance.attendance_sessions (is_pre_approved, work_date) WHERE is_pre_approved = true;
 
 -- Attendance records indexes
 CREATE INDEX idx_attendance_employee_date ON attendance.attendance_records (employee_id, work_date);
@@ -673,6 +708,10 @@ CREATE INDEX idx_leave_requests_date_range ON attendance.leave_requests (start_d
 -- Device logs indexes
 CREATE INDEX idx_device_logs_employee_time ON attendance.device_logs (employee_id, action_timestamp);
 CREATE INDEX idx_device_logs_risk ON attendance.device_logs (risk_score DESC, action_timestamp);
+CREATE INDEX idx_device_logs_location ON attendance.device_logs (latitude, longitude) WHERE latitude IS NOT NULL;
+CREATE INDEX idx_device_logs_wifi ON attendance.device_logs (wifi_ssid, wifi_bssid) WHERE wifi_ssid IS NOT NULL;
+CREATE INDEX idx_device_logs_session ON attendance.device_logs (session_id) WHERE session_id IS NOT NULL;
+CREATE INDEX idx_device_logs_audit ON attendance.device_logs (created_by, last_modified_by, last_modified_at);
 
 -- Monthly summaries indexes
 CREATE INDEX idx_monthly_summary_employee ON attendance.monthly_attendance_summaries (employee_id, year, month);

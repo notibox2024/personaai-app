@@ -8,6 +8,7 @@ Tài liệu này mô tả thiết kế cơ sở dữ liệu cho hệ thống ch�
 - **Quản lý ca làm việc linh hoạt**
 - **Hệ thống nghỉ phép và xin phép trước**
 - **Chống gian lận và audit trail**
+- **Dedicated columns để tối ưu truy vấn và báo cáo**
 
 ---
 
@@ -32,6 +33,26 @@ Tài liệu này mô tả thiết kế cơ sở dữ liệu cho hệ thống ch�
 - **Framework**: Spring Boot với JPA Auditing
 - **Mobile**: Flutter với GPS/WiFi detection
 - **Integration**: REST APIs cho máy chấm công
+
+### **Database Schema Improvements**
+- **Dedicated columns**: Tách dữ liệu từ JSONB sang columns riêng
+- **Optimized queries**: Indexes trên GPS, WiFi, session data
+- **Backward compatibility**: Vẫn giữ JSONB fields cho legacy support
+- **Performance**: Cải thiện tốc độ truy vấn và báo cáo
+
+### **Migration Benefits**
+- **Faster queries**: GPS/WiFi queries với B-tree indexes
+- **Better reports**: Trực tiếp query columns thay vì parse JSON
+- **Type safety**: PostgreSQL type validation cho dữ liệu
+- **Easier analytics**: SQL aggregations trên dedicated columns
+
+### **New Performance Indexes**
+- **GPS queries**: `idx_device_logs_location` (latitude, longitude)
+- **WiFi tracking**: `idx_device_logs_wifi` (wifi_ssid, wifi_bssid)
+- **Session linking**: `idx_device_logs_session` (session_id)
+- **Shift tracking**: `idx_sessions_shift` (shift_id, work_date)
+- **Status queries**: `idx_sessions_status` (status, work_date)
+- **Pre-approvals**: `idx_sessions_preapproved` (is_pre_approved, work_date)
 
 ---
 
@@ -68,14 +89,18 @@ Tài liệu này mô tả thiết kế cơ sở dữ liệu cho hệ thống ch�
 #### `device_logs` - Raw attendance data
 ```sql
 -- Log mọi hoạt động chấm công từ mọi thiết bị
-- App mobile: GPS, WiFi, device info
-- Physical devices: biometric data, device info
+- Dedicated columns: latitude, longitude, gps_accuracy
+- WiFi data: wifi_ssid, wifi_bssid for validation
+- Tracking fields: source, action, session_id
+- Legacy JSONB: device_info, validation_result
 - Anti-fraud: risk scoring, suspicious flags
 ```
 
 #### `attendance_sessions` - Processed sessions
 ```sql
 -- Từng phiên chấm công (check-in/check-out pairs)
+- Shift tracking: shift_id, status, is_pre_approved
+- Work duration: work_duration_minutes
 - Multiple sessions per day support
 - Session types: work, break, overtime, meeting
 - Auto-calculated duration

@@ -170,6 +170,25 @@ class NavigationService {
     }
   }
 
+  /// Generic navigation with stack clearing
+  Future<dynamic> pushNamedAndRemoveUntil(
+    String routeName,
+    bool Function(Route<dynamic>) predicate, {
+    Object? arguments,
+  }) async {
+    try {
+      if (navigator == null) {
+        logger.e('Navigator not available');
+        return null;
+      }
+      
+      return await navigator!.pushNamedAndRemoveUntil(routeName, predicate, arguments: arguments);
+    } catch (e) {
+      logger.e('Error navigating to $routeName with stack clearing: $e');
+      return null;
+    }
+  }
+
   /// Check if can navigate back
   bool canPop() {
     return navigator?.canPop() ?? false;

@@ -20,14 +20,15 @@ DECLARE
     v_employee_id INTEGER;
     v_workplace_location RECORD;
     v_current_shift RECORD;
-    v_device_log_id UUID;
-    v_session_id UUID;
+    v_device_log_id BIGINT;
+    v_session_id BIGINT;
     v_validation_result JSONB;
     v_pre_approval RECORD;
     v_risk_score INTEGER := 0;
     v_current_session RECORD;
     v_result JSONB;
     v_distance_meters DECIMAL;
+    v_speed_kmh DECIMAL;
     v_wifi_valid BOOLEAN := false;
     v_gps_valid BOOLEAN := false;
 BEGIN
@@ -84,7 +85,7 @@ BEGIN
         JOIN public.employees e ON (
             (sa.assignment_type = 'employee' AND sa.target_id = e.id) OR
             (sa.assignment_type = 'position' AND sa.target_id = e.job_title_id) OR  
-            (sa.assignment_type = 'department' AND sa.target_id = e.department_id)
+            (sa.assignment_type = 'department' AND sa.target_id = e.organization_id)
         )
         WHERE e.id = v_employee_id
             AND CURRENT_DATE BETWEEN sa.effective_from AND COALESCE(sa.effective_to, '2099-12-31')
@@ -122,41 +123,34 @@ BEGIN
         );
     END IF;
     
-    -- GPS Validation
-    SELECT ST_Distance(
-        ST_GeogFromText('POINT(' || p_longitude || ' ' || p_latitude || ')'),
-        ST_GeogFromText('POINT(' || v_workplace_location.longitude || ' ' || v_workplace_location.latitude || ')')
+    -- GPS Validation using Haversine formula (no PostGIS required)
+    SELECT (
+        6371000 * acos(
+            cos(radians(v_workplace_location.latitude)) * 
+            cos(radians(p_latitude)) * 
+            cos(radians(p_longitude) - radians(v_workplace_location.longitude)) + 
+            sin(radians(v_workplace_location.latitude)) * 
+            sin(radians(p_latitude))
+        )
     ) INTO v_distance_meters;
     
     v_gps_valid := (v_distance_meters <= v_workplace_location.gps_radius_meters);
     
     -- WiFi Validation (nếu có config)
-    IF v_workplace_location.wifi_networks IS NOT NULL AND jsonb_array_length(v_workplace_location.wifi_networks) > 0 THEN
+    IF v_workplace_location.allowed_wifi_networks IS NOT NULL AND 
+       v_workplace_location.allowed_wifi_networks->'networks' IS NOT NULL AND 
+       jsonb_array_length(v_workplace_location.allowed_wifi_networks->'networks') > 0 THEN
         
-        CASE v_workplace_location.validation_mode
-            WHEN 'strict' THEN
-                -- Require exact SSID + BSSID match
-                SELECT COUNT(*) > 0 INTO v_wifi_valid
-                FROM jsonb_array_elements(v_workplace_location.wifi_networks) network
-                WHERE network->>'ssid' = p_wifi_ssid 
-                    AND network->>'bssid' = p_wifi_bssid;
-                    
-            WHEN 'ssid_only' THEN  
-                -- Allow any BSSID with correct SSID
-                SELECT COUNT(*) > 0 INTO v_wifi_valid
-                FROM jsonb_array_elements(v_workplace_location.wifi_networks) network
-                WHERE network->>'ssid' = p_wifi_ssid;
-                
-            WHEN 'flexible' THEN
-                -- Try BSSID first, fallback to SSID
-                SELECT COUNT(*) > 0 INTO v_wifi_valid  
-                FROM jsonb_array_elements(v_workplace_location.wifi_networks) network
-                WHERE network->>'ssid' = p_wifi_ssid 
-                    AND (network->>'bssid' IS NULL OR network->>'bssid' = p_wifi_bssid);
-                    
-            WHEN 'gps_only' THEN
-                v_wifi_valid := true; -- Skip WiFi validation
-        END CASE;
+        -- Check if WiFi is required and validate
+        IF v_workplace_location.require_wifi = true THEN
+            -- Check SSID + BSSID match (flexible approach)
+            SELECT COUNT(*) > 0 INTO v_wifi_valid
+            FROM jsonb_array_elements(v_workplace_location.allowed_wifi_networks->'networks') network
+            WHERE network->>'ssid' = p_wifi_ssid 
+                AND (network->>'bssid' IS NULL OR network->>'bssid' = p_wifi_bssid);
+        ELSE
+            v_wifi_valid := true; -- WiFi not required
+        END IF;
         
         -- Location validation result
         IF NOT (v_gps_valid OR v_wifi_valid) THEN
@@ -191,7 +185,7 @@ BEGIN
     SELECT * INTO v_pre_approval
     FROM attendance.attendance_preapprovals
     WHERE employee_id = v_employee_id
-        AND request_date = CURRENT_DATE
+        AND requested_date = CURRENT_DATE
         AND status = 'approved'
         AND (
             (p_action = 'check_in' AND request_type IN ('late_arrival', 'schedule_adjustment')) OR
@@ -208,29 +202,34 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM attendance.device_logs
         WHERE employee_id = v_employee_id
-            AND created_date >= CURRENT_TIMESTAMP - INTERVAL '30 minutes'
+            AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 minutes'
             AND device_info->>'device_id' != p_device_info->>'device_id'
     ) THEN
         v_risk_score := v_risk_score + 30;
     END IF;
     
-    -- Check impossible location jump
+    -- Check impossible location jump (sử dụng variable riêng)
     WITH last_location AS (
-        SELECT latitude, longitude, created_date
+        SELECT latitude, longitude, created_at
         FROM attendance.device_logs  
         WHERE employee_id = v_employee_id
             AND latitude IS NOT NULL
-        ORDER BY created_date DESC
+        ORDER BY created_at DESC
         LIMIT 1
     )
-    SELECT ST_Distance(
-        ST_GeogFromText('POINT(' || ll.longitude || ' ' || ll.latitude || ')'),
-        ST_GeogFromText('POINT(' || p_longitude || ' ' || p_latitude || ')')
-    ) / EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ll.created_date)) * 3.6 as speed_kmh
-    INTO v_distance_meters
+    SELECT (
+        6371000 * acos(
+            cos(radians(ll.latitude)) * 
+            cos(radians(p_latitude)) * 
+            cos(radians(p_longitude) - radians(ll.longitude)) + 
+            sin(radians(ll.latitude)) * 
+            sin(radians(p_latitude))
+        )
+    ) / EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ll.created_at)) * 3.6 as speed_kmh
+    INTO v_speed_kmh
     FROM last_location ll;
     
-    IF v_distance_meters > 100 THEN -- Faster than 100km/h
+    IF v_speed_kmh > 100 THEN -- Faster than 100km/h
         v_risk_score := v_risk_score + 50;
     END IF;
 
@@ -259,13 +258,15 @@ BEGIN
         
         -- Create new attendance session
         INSERT INTO attendance.attendance_sessions (
-            id, employee_id, work_date, shift_id, location_id,
-            check_in_time, session_type, status, is_pre_approved
+            employee_id, work_date, shift_id, location_id,
+            check_in_time, session_type, status, is_pre_approved,
+            created_by, created_date, last_modified_by, last_modified_date
         ) VALUES (
-            gen_random_uuid(), v_employee_id, CURRENT_DATE, 
+            v_employee_id, CURRENT_DATE, 
             v_current_shift.id, v_workplace_location.id,
             CURRENT_TIMESTAMP, 'work', 'active',
-            v_pre_approval IS NOT NULL
+            v_pre_approval IS NOT NULL,
+            'mobile_app', CURRENT_TIMESTAMP, 'mobile_app', CURRENT_TIMESTAMP
         ) RETURNING id INTO v_session_id;
         
     ELSE -- check_out
@@ -291,7 +292,9 @@ BEGIN
         SET 
             check_out_time = CURRENT_TIMESTAMP,
             status = 'completed',
-            work_duration_minutes = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - check_in_time)) / 60
+            work_duration_minutes = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - check_in_time)) / 60,
+            last_modified_by = 'mobile_app',
+            last_modified_date = CURRENT_TIMESTAMP
         WHERE id = v_current_session.id;
         
         v_session_id := v_current_session.id;
@@ -303,27 +306,38 @@ BEGIN
     -- =================================================================
     
     INSERT INTO attendance.device_logs (
-        id, employee_id, device_type, source, action,
+        employee_id, device_type, device_identifier, action_timestamp, action_type, source, action,
         latitude, longitude, gps_accuracy, 
-        wifi_ssid, wifi_bssid, device_info,
-        validation_result, risk_score, session_id
+        wifi_ssid, wifi_bssid, device_info, session_id,
+        validation_result, risk_score,
+        created_by, last_modified_by, last_modified_at
     ) VALUES (
-        gen_random_uuid(), v_employee_id, 'mobile', 'app', p_action,
+        v_employee_id, 'mobile', COALESCE(p_device_info->>'device_id', 'unknown'), CURRENT_TIMESTAMP, p_action, 'app', p_action,
         p_latitude, p_longitude, p_gps_accuracy,
-        p_wifi_ssid, p_wifi_bssid, p_device_info,
+        p_wifi_ssid, p_wifi_bssid, p_device_info, v_session_id,
         jsonb_build_object(
             'gps_valid', v_gps_valid,
             'wifi_valid', v_wifi_valid, 
             'distance_meters', v_distance_meters,
-            'pre_approved', v_pre_approval IS NOT NULL
+            'pre_approved', v_pre_approval IS NOT NULL,
+            'session_id', v_session_id
         ),
-        CASE 
-            WHEN v_risk_score >= 80 THEN 'high'::attendance.risk_level
-            WHEN v_risk_score >= 40 THEN 'medium'::attendance.risk_level  
-            ELSE 'low'::attendance.risk_level
-        END,
-        v_session_id
+        v_risk_score,
+        'mobile_app', 'mobile_app', CURRENT_TIMESTAMP
     ) RETURNING id INTO v_device_log_id;
+
+    -- =================================================================
+    -- 8.1. LINK DEVICE LOG TO SESSION
+    -- =================================================================
+    
+    -- Update attendance session với device_log_id ngay sau khi tạo device log
+    UPDATE attendance.attendance_sessions 
+    SET 
+        check_in_device_log_id = CASE WHEN p_action = 'check_in' THEN v_device_log_id ELSE check_in_device_log_id END,
+        check_out_device_log_id = CASE WHEN p_action = 'check_out' THEN v_device_log_id ELSE check_out_device_log_id END,
+        last_modified_by = 'mobile_app',
+        last_modified_date = CURRENT_TIMESTAMP
+    WHERE id = v_session_id;
 
     -- =================================================================
     -- 9. UPDATE DAILY ATTENDANCE RECORD
@@ -332,28 +346,49 @@ BEGIN
     -- Upsert attendance_records cho ngày hiện tại
     INSERT INTO attendance.attendance_records (
         employee_id, work_date, shift_id, location_id,
-        first_check_in, last_check_out, total_work_minutes,
-        status, check_in_source, check_out_source
+        actual_check_in, actual_check_out, total_work_minutes,
+        check_in_gps_lat, check_in_gps_lng, 
+        check_in_wifi_data, check_out_wifi_data, mobile_device_info,
+        status, check_in_source, check_out_source,
+        created_by, created_date, last_modified_by, last_modified_date
     ) VALUES (
         v_employee_id, CURRENT_DATE, v_current_shift.id, v_workplace_location.id,
-        CASE WHEN p_action = 'check_in' THEN CURRENT_TIMESTAMP END,
-        CASE WHEN p_action = 'check_out' THEN CURRENT_TIMESTAMP END,
+        CASE WHEN p_action = 'check_in' THEN CURRENT_TIMESTAMP ELSE NULL END,
+        CASE WHEN p_action = 'check_out' THEN CURRENT_TIMESTAMP ELSE NULL END,
         CASE WHEN p_action = 'check_out' THEN 
             EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - v_current_session.check_in_time)) / 60
         ELSE 0 END,
-        'incomplete', 'app',
-        CASE WHEN p_action = 'check_out' THEN 'app' END
+        CASE WHEN p_action = 'check_in' THEN p_latitude ELSE NULL END,
+        CASE WHEN p_action = 'check_in' THEN p_longitude ELSE NULL END,
+        CASE WHEN p_action = 'check_in' THEN 
+            jsonb_build_object('ssid', p_wifi_ssid, 'bssid', p_wifi_bssid, 'validated', v_wifi_valid) 
+        ELSE NULL END,
+        CASE WHEN p_action = 'check_out' THEN 
+            jsonb_build_object('ssid', p_wifi_ssid, 'bssid', p_wifi_bssid, 'validated', v_wifi_valid) 
+        ELSE NULL END,
+        p_device_info,
+        CASE WHEN p_action = 'check_in' THEN 'incomplete'::attendance.attendance_status 
+             ELSE 'normal'::attendance.attendance_status END,
+        CASE WHEN p_action = 'check_in' THEN 'app'::attendance.check_source ELSE NULL END,
+        CASE WHEN p_action = 'check_out' THEN 'app'::attendance.check_source ELSE NULL END,
+        'mobile_app', CURRENT_TIMESTAMP, 'mobile_app', CURRENT_TIMESTAMP
     )
     ON CONFLICT (employee_id, work_date) DO UPDATE SET
-        last_check_out = CASE WHEN p_action = 'check_out' THEN CURRENT_TIMESTAMP ELSE attendance_records.last_check_out END,
-        check_out_source = CASE WHEN p_action = 'check_out' THEN 'app' ELSE attendance_records.check_out_source END,
+        actual_check_out = CASE WHEN p_action = 'check_out' THEN CURRENT_TIMESTAMP ELSE attendance_records.actual_check_out END,
+        check_out_source = CASE WHEN p_action = 'check_out' THEN 'app'::attendance.check_source ELSE attendance_records.check_out_source END,
+        check_out_wifi_data = CASE WHEN p_action = 'check_out' THEN 
+            jsonb_build_object('ssid', p_wifi_ssid, 'bssid', p_wifi_bssid, 'validated', v_wifi_valid) 
+        ELSE attendance_records.check_out_wifi_data END,
+        mobile_device_info = COALESCE(p_device_info, attendance_records.mobile_device_info),
         total_work_minutes = CASE WHEN p_action = 'check_out' THEN 
-            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - attendance_records.first_check_in)) / 60
+            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - attendance_records.actual_check_in)) / 60
         ELSE attendance_records.total_work_minutes END,
         status = CASE 
             WHEN p_action = 'check_out' THEN 'normal'::attendance.attendance_status
             ELSE attendance_records.status 
-        END;
+        END,
+        last_modified_by = 'mobile_app',
+        last_modified_date = CURRENT_TIMESTAMP;
 
     -- =================================================================
     -- 10. RETURN SUCCESS RESPONSE
@@ -363,6 +398,7 @@ BEGIN
         'success', true,
         'action', p_action,
         'session_id', v_session_id,
+        'device_log_id', v_device_log_id,
         'timestamp', CURRENT_TIMESTAMP,
         'message', CASE 
             WHEN p_action = 'check_in' THEN 'Successfully checked in'
@@ -405,7 +441,7 @@ EXCEPTION
             'message', 'An unexpected error occurred. Please try again.',
             'debug_info', CASE 
                 WHEN current_setting('app.debug_mode', true) = 'true' THEN
-                    jsonb_build_object('error', SQLERRM)
+                    jsonb_build_object('error', SQLERRM, 'detail', SQLSTATE)
                 ELSE null
             END
         );

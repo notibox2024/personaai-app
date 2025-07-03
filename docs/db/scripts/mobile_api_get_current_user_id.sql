@@ -38,11 +38,11 @@ BEGIN
     END IF;
 
     -- Single query to get employee ID
-    -- Using index on email for fast lookup
+    -- Using index on email_internal for fast lookup
     SELECT id INTO v_employee_id
     FROM public.employees 
-    WHERE email = v_user_email 
-        AND is_active = true
+    WHERE email_internal = v_user_email 
+        AND employee_type IS NOT NULL  -- equivalent to is_active
     LIMIT 1;
     
     RETURN v_employee_id;
