@@ -21,6 +21,7 @@ class GlobalServices {
 
   final logger = Logger();
   bool _isInitialized = false;
+  bool _isHandlingAuthRequired = false; // Flag để tránh multiple auth dialogs
 
   /// Initialize all global services và setup callbacks
   Future<void> initialize() async {
@@ -87,7 +88,14 @@ class GlobalServices {
 
   /// Handle khi ApiService require authentication
   Future<void> _handleAuthRequired() async {
+    // Tránh multiple auth dialogs
+    if (_isHandlingAuthRequired) {
+      logger.d('Already handling auth required - skipping');
+      return;
+    }
+    
     try {
+      _isHandlingAuthRequired = true;
       logger.w('Authentication required - navigating to login');
       
       // Show dialog trước khi navigate (user-friendly)
@@ -98,11 +106,22 @@ class GlobalServices {
       
       // Fallback - direct navigate
       await NavigationService().navigateToLogin();
+    } finally {
+      // Reset flag sau 5 giây để cho phép retry nếu cần
+      Future.delayed(const Duration(seconds: 5), () {
+        _isHandlingAuthRequired = false;
+      });
     }
   }
 
   /// Get initialization status
   bool get isInitialized => _isInitialized;
+
+  /// Reset auth required flag để tránh loop
+  void resetAuthRequiredFlag() {
+    _isHandlingAuthRequired = false;
+    logger.d('Auth required flag reset');
+  }
 
   /// Dispose all services (for testing hoặc app shutdown)
   Future<void> dispose() async {

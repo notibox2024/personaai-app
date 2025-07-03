@@ -20,6 +20,7 @@ import 'shared/services/device_info_service.dart';
 import 'shared/services/token_manager.dart';
 import 'shared/services/performance_monitor.dart';
 import 'shared/services/navigation_service.dart';
+import 'shared/services/global_services.dart';
 
 void main() async {
   final logger = Logger();
@@ -180,18 +181,25 @@ class _PersonaAIAppState extends State<PersonaAIApp> {
                 );
               }
               
+              // Reset auth required flag khi có auth state change
+              if (state is AuthAuthenticated || state is AuthInitial) {
+                GlobalServices().resetAuthRequiredFlag();
+              }
+              
               // Handle navigation when auth state changes
               if (state is AuthAuthenticated) {
                 // Khi login thành công, sử dụng NavigationService để tránh context issues
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   final navigationService = NavigationService();
+                  final currentRoute = navigationService.getCurrentRouteName();
                   
-                  // Luôn navigate về home khi login thành công 
-                  // Điều này sẽ clear tất cả routes và đưa user về AppLayout
-                  navigationService.pushNamedAndRemoveUntil('/main', (route) => false);
-                  
-                  // Debug log
-                  Logger().i('🏠 Navigating to home after successful login');
+                  // Chỉ navigate nếu hiện tại đang ở login page
+                  if (currentRoute == '/login') {
+                    navigationService.pushNamedAndRemoveUntil('/main', (route) => false);
+                    Logger().i('🏠 Navigating to home after successful login from login page');
+                  } else {
+                    Logger().d('Already at home or other page ($currentRoute), skipping navigation');
+                  }
                 });
               }
             },
